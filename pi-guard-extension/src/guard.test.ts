@@ -45,6 +45,34 @@ describe("createStateMachine", () => {
     expect(g.isTargetSkill("/skill:unknown")).toBe(false);
   });
 
+  it("detects target skill via XML <skill name=...> tag", () => {
+    const g = createStateMachine();
+    // XML double-quoted tag
+    expect(g.isTargetSkill('<skill name="to-spec">')).toBe(true);
+    // XML single-quoted tag
+    expect(g.isTargetSkill("<skill name='grill-me'>")).toBe(true);
+    // XML tag with extra attributes
+    expect(g.isTargetSkill('<skill name="grill-with-docs" location="...">')).toBe(true);
+    // Self-closing tag
+    expect(g.isTargetSkill('<skill name="wayfinder" />')).toBe(true);
+    // Non-target skill in XML tag
+    expect(g.isTargetSkill('<skill name="unknown">')).toBe(false);
+    // Plain text - no match
+    expect(g.isTargetSkill('plain text')).toBe(false);
+  });
+
+  it("detects XML skill tag embedded in larger message text", () => {
+    const g = createStateMachine();
+    const message = `<skill name="grill-with-docs" location="/home/.../SKILL.md">
+References are relative to ...
+
+Run a /grilling session.
+</skill>
+
+将模板文件追加到订阅文件`;
+    expect(g.isTargetSkill(message)).toBe(true);
+  });
+
   it("transitions to skill_active on target skill input", () => {
     const g = createStateMachine();
     g.handleInput("/skill:to-spec");
@@ -55,6 +83,40 @@ describe("createStateMachine", () => {
     const g = createStateMachine();
     g.handleInput("hello world");
     expect(g.getState()).toBe("normal");
+  });
+
+  it("transitions to skill_active via XML <skill name=...> tag", () => {
+    const g = createStateMachine();
+    g.handleInput('<skill name="to-spec">');
+    expect(g.getState()).toBe("skill_active");
+  });
+
+  it("transitions to skill_active via XML tag with extra attributes", () => {
+    const g = createStateMachine();
+    g.handleInput('<skill name="grill-with-docs" location="/path/to/SKILL.md">');
+    expect(g.getState()).toBe("skill_active");
+  });
+
+  it("transitions to skill_active via multiline XML skill message", () => {
+    const g = createStateMachine();
+    const message = `<skill name="grill-with-docs" location="/home/.../SKILL.md">
+References are relative to ...
+
+Run a /grilling session.
+</skill>
+
+将模板文件追加到订阅文件`;
+    g.handleInput(message);
+    expect(g.getState()).toBe("skill_active");
+  });
+
+  it("full flow: XML skill tag → guarded after agent_settled", () => {
+    const g = createStateMachine();
+    g.handleInput('<skill name="to-spec">');
+    expect(g.getState()).toBe("skill_active");
+    g.handleAgentSettled();
+    expect(g.getState()).toBe("guarded");
+    expect(g.isBlocking()).toBe(true);
   });
 
   it("transitions from skill_active to guarded on agent_settled", () => {

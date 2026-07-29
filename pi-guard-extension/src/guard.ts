@@ -96,8 +96,14 @@ export function createStateMachine(options?: GuardMachineOptions): GuardMachine 
     },
 
     isTargetSkill(command: string): boolean {
+      // Check /skill:<name> format (exact match)
       for (const skill of targetSkills) {
         if (command === `/skill:${skill}`) return true;
+      }
+      // Check <skill name="..."> XML tag format (search anywhere in text)
+      const match = command.match(/<skill\s+name\s*=\s*(["'])([^"']+)\1[^>]*\/?\s*>/i);
+      if (match) {
+        return targetSkills.includes(match[2]);
       }
       return false;
     },
