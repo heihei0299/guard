@@ -12,6 +12,10 @@ export type GuardState = "normal" | "skill_active" | "guarded";
 export interface GuardMachineOptions {
   /** List of skill names (without "/skill:" prefix) that trigger the guard. */
   targetSkills?: readonly string[];
+  /** Additional paths allowed for write/replace in guarded mode.
+   *  Directory-type paths (ending with "/") match by prefix,
+   *  file-type paths match exactly. */
+  allowWritePaths?: readonly string[];
 }
 
 export interface GuardMachine {
@@ -31,6 +35,10 @@ export interface GuardMachine {
   reset(): void;
   /** Rebuild state by scanning session history for target skill calls. */
   rebuildFromHistory(entries: readonly any[]): void;
+  /** Check if a file path is allowed for write/replace in guarded mode.
+   *  Directory paths in allowlist use prefix matching; file paths use exact match.
+   *  Leading "./" is normalized before matching. */
+  isPathAllowed(filePath: string): boolean;
 }
 
 // ── Defaults ─────────────────────────────────────────────────────────────
@@ -41,6 +49,12 @@ export const DEFAULT_TARGET_SKILLS = [
   "grill-me",
   "grill-with-docs",
   "wayfinder",
+] as const;
+
+export const DEFAULT_ALLOW_WRITE_PATHS = [
+  ".scratch/",
+  "docs/",
+  "CONTEXT.md",
 ] as const;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -69,6 +83,7 @@ export function extractTextContent(
 
 export function createStateMachine(options?: GuardMachineOptions): GuardMachine {
   const targetSkills = options?.targetSkills ?? DEFAULT_TARGET_SKILLS;
+  const allowWritePaths = options?.allowWritePaths ?? DEFAULT_ALLOW_WRITE_PATHS;
   let state: GuardState = "normal";
 
   return {
@@ -130,6 +145,20 @@ export function createStateMachine(options?: GuardMachineOptions): GuardMachine 
           break; // Once we find one, we know we're in guarded territory.
         }
       }
+    },
+
+    isPathAllowed(filePath: string): boolean {
+      const normalized = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+      for (const allowedPath of allowWritePaths) {
+        if (allowedPath.endsWith("/")) {
+          // Directory-type: prefix match
+          if (normalized.startsWith(allowedPath)) return true;
+        } else {
+          // File-type: exact match
+          if (normalized === allowedPath) return true;
+        }
+      }
+      return false;
     },
   };
 }

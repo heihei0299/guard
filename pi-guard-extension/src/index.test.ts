@@ -37,6 +37,19 @@ function createMockCtx(overrides?: Record<string, any>): any {
   };
 }
 
+// ── Test helpers ──────────────────────────────────────────────────────────
+
+async function setupGuarded(pi: any, handlers: any) {
+  await handlers["input"](
+    { type: "input", text: "/skill:to-spec" },
+    createMockCtx(),
+  );
+  await handlers["agent_settled"](
+    { type: "agent_settled" },
+    createMockCtx(),
+  );
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe("createGuard", () => {
@@ -230,30 +243,7 @@ describe("createGuard", () => {
       createGuard()(pi);
 
       const ctx = createMockCtx();
-      await handlers["session_start"](
-        {
-          type: "session_start",
-          reason: "startup",
-        },
-        createMockCtx({
-          sessionManager: {
-            getEntries: vi.fn(() => [
-              { role: "user", content: "/skill:to-spec" },
-            ]),
-          },
-        }),
-      );
-
-      // Manually set guarded state via the state machine path
-      // Instead, use the normal flow: input + agent_settled
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "write", args: {} },
@@ -269,14 +259,7 @@ describe("createGuard", () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "replace", args: {} },
@@ -288,21 +271,220 @@ describe("createGuard", () => {
       });
     });
 
-    it("blocks bash in guarded mode", async () => {
+    it("blocks write bash commands in guarded mode", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
-        { toolName: "bash", args: {} },
+        { toolName: "bash", input: { command: "rm -rf /tmp/test" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("allows readonly bash commands (ls) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "ls -la" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows readonly bash commands (cat) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "cat file.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows readonly bash commands (grep) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "grep something file.ts" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("blocks bash commands with redirect operators", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "echo foo > file.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("allows git readonly commands (git status) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "git status" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("blocks git write commands (git commit) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "git commit -m 'test'" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks npm install in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "npm install foo" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks unknown bash commands conservatively", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "some-obscure-tool" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("allows curl as readonly command in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "curl -s https://example.com" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows awk without -i as readonly command in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "awk '{print $1}' file.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("blocks awk with -i flag in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "awk -i inplace '{print}' file.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks read command (scope creep removal)", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "read var" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks fgrep command (scope creep removal)", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "fgrep foo file.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks fffind command (scope creep removal)", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "fffind something ." } },
         createMockCtx(),
       );
       expect(result).toEqual({
@@ -315,14 +497,7 @@ describe("createGuard", () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "edit", args: {} },
@@ -336,14 +511,7 @@ describe("createGuard", () => {
       createGuard()(pi);
 
       // Set up guarded state
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "read", args: {} },
@@ -356,14 +524,7 @@ describe("createGuard", () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "grep", args: {} },
@@ -376,14 +537,7 @@ describe("createGuard", () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "find", args: {} },
@@ -396,14 +550,7 @@ describe("createGuard", () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
 
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "ls", args: {} },
@@ -433,28 +580,7 @@ describe("createGuard", () => {
         abort: vi.fn(),
       });
 
-      // Set up guarded state via session_start rebuild
-      await handlers["session_start"](
-        { type: "session_start", reason: "resume" },
-        createMockCtx({
-          sessionManager: {
-            getEntries: vi.fn(() => [
-              { type: "message", role: "user", content: "/skill:to-spec" },
-            ]),
-          },
-        }),
-      );
-
-      // The session_start handler above created a new guard instance (separate from our ctx)
-      // Let's do it properly: use input + agent_settled flow with our ctx
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       await handlers["tool_call"]({ toolName: "write", args: {} }, ctx);
 
@@ -485,14 +611,7 @@ describe("createGuard", () => {
       createGuard()(pi);
 
       // Set up guarded state
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       // Execute /guard:allow
       const cmd = (pi.registerCommand as ReturnType<typeof vi.fn>).mock
@@ -563,17 +682,116 @@ describe("createGuard", () => {
       createGuard({ targetSkills: ["my-custom-skill"] })(pi);
 
       // Default skill should NOT trigger guard
-      await handlers["input"](
-        { type: "input", text: "/skill:to-spec" },
-        createMockCtx(),
-      );
-      await handlers["agent_settled"](
-        { type: "agent_settled" },
-        createMockCtx(),
-      );
+      await setupGuarded(pi, handlers);
 
       const result = await handlers["tool_call"](
         { toolName: "write", args: {} },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+  });
+
+  // ── Path allowlist ──────────────────────────────────────────────────
+
+  describe("path allowlist", () => {
+
+    it("allows write to .scratch/ path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: ".scratch/test.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows write to docs/ path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: "docs/guide.md" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows write to CONTEXT.md in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: "CONTEXT.md" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows write to path with ./ prefix in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: "./.scratch/test.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("blocks write to non-allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: "src/index.ts" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("allows replace to allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "replace", input: { path: ".scratch/file.ts" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("still blocks write bash even if path references allowlisted dir", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "mv .scratch/tmp.txt .scratch/final.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("does not block write to allowlisted path when not guarded", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      const result = await handlers["tool_call"](
+        { toolName: "write", input: { path: ".scratch/test.txt" } },
         createMockCtx(),
       );
       expect(result).toBeUndefined();

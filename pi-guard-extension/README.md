@@ -35,12 +35,44 @@ The guard is a **three-state state machine**:
 | `guarded` → `normal` | User runs `/guard:allow` command |
 | `guarded` → `skill_active` | User runs another target skill command |
 
-In **`guarded`** mode, the following tools are **blocked**:
-- `write` — blocked + `ctx.abort()`
-- `edit` — blocked + `ctx.abort()`
-- `bash` — blocked + `ctx.abort()` (all commands, including read-only ones)
+In **`guarded`** mode, tools are handled as follows:
 
-Read-only tools (`read`, `grep`, `find`, `ls`) pass through normally.
+| Tool | Behavior |
+|---|---|
+| `write` / `replace` | Blocked (with **path allowlist** pass-through for `.scratch/`, `docs/`, `CONTEXT.md`) |
+| `bash` | **Write-type** commands blocked; **read-only** commands allowed (see below) |
+| `read`, `grep`, `find`, `ls` | Always allowed |
+
+### Path allowlist
+
+`write` and `replace` calls targeting the following paths are **allowed** even in guarded mode:
+
+| Path | Match Rule |
+|---|---|
+| `.scratch/` | Prefix match — any file under `.scratch/` |
+| `docs/` | Prefix match — any file under `docs/` |
+| `CONTEXT.md` | Exact match — only root-level `CONTEXT.md` |
+
+### Bash read-only command passthrough
+
+In guarded mode, `bash` commands are classified as **read-only** (allowed) or **write** (blocked):
+
+**Allowed** (read-only):
+- `ls`, `cat`, `head`, `tail`, `less`, `more`, `wc`
+- `grep`, `fgrep`, `rg`, `ag`, `find`
+- `file`, `stat`, `du`, `df`, `which`, `type`
+- `echo`, `printf`
+- `ps`, `top`, `htop`, `uptime`, `date`, `cal`
+- `ping`, `dig`, `nslookup`, `host`
+- `git log`, `git status`, `git diff`, `git show`, `git branch`, `git tag`, `git describe`, `git rev-parse`, `git ls-files`, `git stash list`
+
+**Blocked** (write-type):
+- Any command containing `>` / `>>` / `<` redirect operators
+- `sed -i`, `awk`, `tee`, `dd`, `touch`, `mkdir`, `rmdir`, `rm`, `mv`, `cp`, `ln`
+- `chmod`, `chown`, `chattr`
+- `git add`, `git commit`, `git push`, `git pull`, `git merge`, `git rebase`, `git reset`, `git checkout`, `git branch -d`, `git tag -d`, `git stash push`, `git stash drop`
+- `npm install`, `npm publish`, `uv sync`, `pip install`
+- Unknown commands (conservative default: block)
 
 When a session is **resumed** (`/resume`), the extension scans session history and restores `guarded` state if a target skill was previously activated.
 

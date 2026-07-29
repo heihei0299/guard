@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractTextContent, createStateMachine, DEFAULT_TARGET_SKILLS } from "./guard.ts";
+import { extractTextContent, createStateMachine, DEFAULT_TARGET_SKILLS, DEFAULT_ALLOW_WRITE_PATHS } from "./guard.ts";
 
 // ── Slice 1: helpers + skeleton ───────────────────────────────────────
 
@@ -205,5 +205,73 @@ describe("createStateMachine", () => {
       "grill-with-docs",
       "wayfinder",
     ]);
+  });
+});
+
+// ── Slice 2: path allowlist ──────────────────────────────────────────
+
+describe("DEFAULT_ALLOW_WRITE_PATHS", () => {
+  it("contains .scratch/, docs/, and CONTEXT.md", () => {
+    expect(DEFAULT_ALLOW_WRITE_PATHS).toEqual([
+      ".scratch/",
+      "docs/",
+      "CONTEXT.md",
+    ]);
+  });
+});
+
+describe("isPathAllowed", () => {
+  it("allows paths under .scratch/ directory prefix", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed(".scratch/test.txt")).toBe(true);
+    expect(g.isPathAllowed(".scratch/sub/dir/file.ts")).toBe(true);
+  });
+
+  it("allows paths under docs/ directory prefix", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("docs/guide.md")).toBe(true);
+    expect(g.isPathAllowed("docs/api/README.md")).toBe(true);
+  });
+
+  it("allows CONTEXT.md exact match", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("CONTEXT.md")).toBe(true);
+  });
+
+  it("rejects paths outside allowlist", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("src/index.ts")).toBe(false);
+    expect(g.isPathAllowed("package.json")).toBe(false);
+    expect(g.isPathAllowed("lib/utils.ts")).toBe(false);
+  });
+
+  it("normalizes ./ prefix before matching", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("./.scratch/test.txt")).toBe(true);
+    expect(g.isPathAllowed("./docs/guide.md")).toBe(true);
+    expect(g.isPathAllowed("./CONTEXT.md")).toBe(true);
+    expect(g.isPathAllowed("./src/index.ts")).toBe(false);
+  });
+
+  it("does not partially match file names", () => {
+    const g = createStateMachine();
+    // CONTEXT.md should match exactly, not .md files
+    expect(g.isPathAllowed("README.md")).toBe(false);
+    expect(g.isPathAllowed("docs.md")).toBe(false);
+  });
+
+  it("does not partially match directory prefixes", () => {
+    const g = createStateMachine();
+    // .scratch-other/ should not match .scratch/
+    expect(g.isPathAllowed(".scratch-other/file.ts")).toBe(false);
+    expect(g.isPathAllowed("documentation/guide.md")).toBe(false);
+  });
+
+  it("accepts custom allowWritePaths in options", () => {
+    const g = createStateMachine({ allowWritePaths: ["custom/", "special.txt"] });
+    expect(g.isPathAllowed("custom/file.ts")).toBe(true);
+    expect(g.isPathAllowed("special.txt")).toBe(true);
+    expect(g.isPathAllowed(".scratch/test.txt")).toBe(false);
+    expect(g.isPathAllowed("docs/guide.md")).toBe(false);
   });
 });
