@@ -6,7 +6,7 @@ import {
   type GuardMachineOptions,
 } from "./guard.ts";
 import { isBashReadonly } from "./bash-command-classifier.ts";
-
+import { isBashPathAllowed } from "./bash-path-allowlist.ts";
 // ── Exports ────────────────────────────────────────────────────────────
 
 export type { GuardState, GuardMachine, GuardMachineOptions } from "./guard.ts";
@@ -14,6 +14,12 @@ export type { GuardState, GuardMachine, GuardMachineOptions } from "./guard.ts";
 export interface GuardExtensionOptions {
   /** List of skill names that trigger the guard. */
   targetSkills?: readonly string[];
+  /** Paths allowed for write/replace/bash in guarded mode.
+   *  Directory entries (ending with "/") match by prefix or subpath;
+   *  file entries match by exact filename or suffix.
+   *  Defaults to ".scratch/", "docs/", "CONTEXT.md".
+   */
+  allowWritePaths?: readonly string[];
 }
 
 /** Bilingual block message shown in skill_active state (skill in progress). */
@@ -48,9 +54,10 @@ const BLOCK_REASON_GUARDED = [
  */
 export function createGuard(options?: GuardExtensionOptions) {
   const targetSkills = options?.targetSkills ?? DEFAULT_TARGET_SKILLS;
+  const allowWritePaths = options?.allowWritePaths;
 
   return function guardExtension(pi: ExtensionAPI): void {
-    const guard = createStateMachine({ targetSkills } satisfies GuardMachineOptions);
+    const guard = createStateMachine({ targetSkills, allowWritePaths } satisfies GuardMachineOptions);
 
     // ── Session start: rebuild guard state from history ──────────────
     pi.on("session_start", async (event, ctx) => {
@@ -91,9 +98,14 @@ export function createGuard(options?: GuardExtensionOptions) {
         }
       }
 
-      // bash: check if the command is readonly
+      // bash: check if the command is readonly (first stage)
       if (toolName === "bash" && event.input?.command) {
-        if (isBashReadonly(event.input.command as string)) {
+        const command = event.input.command as string;
+        if (isBashReadonly(command)) {
+          return undefined;
+        }
+        // Second stage: path-aware check for write commands
+        if (isBashPathAllowed(command, [...guard.getAllowWritePaths()])) {
           return undefined;
         }
       }

@@ -46,8 +46,9 @@ export interface GuardMachine {
    *  File-type entries match by exact filename or as the last path component
    *  (e.g. "CONTEXT.md" matches both "CONTEXT.md" and "ri/CONTEXT.md"). */
   isPathAllowed(filePath: string): boolean;
+  /** Get the current allow-write paths list. */
+  getAllowWritePaths(): readonly string[];
 }
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -163,9 +164,11 @@ export function createStateMachine(config?: GuardMachineOptions & { config?: Gua
       }
       return false;
     },
+    getAllowWritePaths(): readonly string[] {
+      return allowWritePaths;
+    },
   };
 }
-
 // Re-export DEFAULT_CONFIG for backward compatibility in tests
 import { DEFAULT_CONFIG } from "./config.ts";
 export { DEFAULT_CONFIG, type GuardConfig } from "./config.ts";

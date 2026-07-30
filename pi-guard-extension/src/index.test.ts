@@ -774,7 +774,7 @@ describe("createGuard", () => {
       expect(result).toBeUndefined();
     });
 
-    it("still blocks write bash even if path references allowlisted dir", async () => {
+    it("allows write bash when all paths are in allowlist (mv within .scratch/)", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
       await setupGuarded(pi, handlers);
@@ -783,10 +783,7 @@ describe("createGuard", () => {
         { toolName: "bash", input: { command: "mv .scratch/tmp.txt .scratch/final.txt" } },
         createMockCtx(),
       );
-      expect(result).toEqual({
-        block: true,
-        reason: expect.stringContaining("🔒"),
-      });
+      expect(result).toBeUndefined();
     });
 
     it("does not block write to allowlisted path when not guarded", async () => {
@@ -795,6 +792,109 @@ describe("createGuard", () => {
 
       const result = await handlers["tool_call"](
         { toolName: "write", input: { path: ".scratch/test.txt" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    // ── Bash path allowlist integration ──────────────────────────────
+
+    it("allows mkdir -p with allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "mkdir -p docs/adr" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows rm with allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "rm docs/tmp.md" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows cp with source in allowlist in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "cp docs/guide.md ./" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows echo with redirect to allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "echo hello > docs/out.md" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("allows touch with allowlisted path in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "touch docs/new.md" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("blocks mkdir with path outside allowlist in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "mkdir /tmp/outside" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("blocks dd even if path references allowlisted dir in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "dd if=/dev/zero of=docs/out.bin" } },
+        createMockCtx(),
+      );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("does not block mkdir -p with allowlisted path when not guarded", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "mkdir -p docs/adr" } },
         createMockCtx(),
       );
       expect(result).toBeUndefined();
