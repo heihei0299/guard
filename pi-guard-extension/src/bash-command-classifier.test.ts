@@ -33,14 +33,43 @@ describe("isBashReadonly", () => {
   });
 
   // ── Redirect operators ────────────────────────────────────────────
-  it("blocks command with stdout redirect", () => {
+  it("blocks command with stdout redirect to real file", () => {
     expect(isBashReadonly("echo foo > file.txt")).toBe(false);
   });
 
-  it("blocks command with stderr redirect", () => {
+  it("blocks command with stderr redirect to real file", () => {
     expect(isBashReadonly("cat foo 2>> error.log")).toBe(false);
   });
-
+  
+  // ── Redirect operators: harmless patterns (previously false positives) ──
+  it("allows ls with stderr to /dev/null", () => {
+    expect(isBashReadonly("ls docs/ 2>/dev/null")).toBe(true);
+  });
+  
+  it("allows command with stderr to /dev/null and shell operators", () => {
+    expect(isBashReadonly("ls docs/ 2>/dev/null || echo x")).toBe(true);
+  });
+  
+  it("allows cat with input redirect", () => {
+    expect(isBashReadonly("cat < input.txt")).toBe(true);
+  });
+  
+  it("allows grep with input redirect", () => {
+    expect(isBashReadonly("grep foo < bar.txt")).toBe(true);
+  });
+  
+  it("allows command with stderr to stdout fd redirect", () => {
+    expect(isBashReadonly("cat file 2>&1")).toBe(true);
+  });
+  
+  it("allows echo to /dev/null (harmless write target)", () => {
+    expect(isBashReadonly("echo hello > /dev/null")).toBe(true);
+  });
+  
+  
+  it("blocks command with combined N> redirect to real file", () => {
+    expect(isBashReadonly("ls nonexistent 2> err.log")).toBe(false);
+  });
   // ── Git subcommands ───────────────────────────────────────────────
   it("allows git status", () => {
     expect(isBashReadonly("git status")).toBe(true);

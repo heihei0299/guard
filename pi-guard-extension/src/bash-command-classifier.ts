@@ -78,10 +78,34 @@ export function createBashClassifier(config: BashClassifierConfig): (command: st
     const trimmed = command.trim();
     if (!trimmed) return false;
 
-    // Redirect operators always indicate write intent
-    if (/[<>]/.test(trimmed)) return false;
-
     const tokens = trimmed.split(/\s+/);
+
+    // Check for output redirects that target real files (not /dev/null, not &N).
+    // This replaces the previous naive /[<>]/ regex which falsely flagged
+    // harmless patterns like `2>/dev/null`, `2>&1`, and `< input.txt`.
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      // Standalone > or >> : output redirect
+      if (t === ">" || t === ">>") {
+        if (i + 1 >= tokens.length) return false;
+        const target = tokens[i + 1];
+        if (target !== "/dev/null" && !target.startsWith("&")) return false;
+        continue;
+      }
+      // Numbered redirect as separate token: N> or N>> (e.g., "2>>" "error.log")
+      if (/^\d+>$/.test(t) || /^\d+>>$/.test(t)) {
+        if (i + 1 >= tokens.length) return false;
+        const target = tokens[i + 1];
+        if (target !== "/dev/null" && !target.startsWith("&")) return false;
+        continue;
+      }
+      // Combined redirect+path: N>/dev/null, 2>&1, &>file, etc.
+      const match = t.match(/^(\d+|&)(>|>>)(.+)$/);
+      if (match) {
+        const target = match[3];
+        if (target !== "/dev/null" && !target.startsWith("&")) return false;
+      }
+    }
     const cmd = tokens[0];
 
     // Passthrough wrapper: skip and check inner command
