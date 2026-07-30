@@ -14,7 +14,7 @@ export interface GuardMachineOptions {
   /** List of skill names (without "/skill:" prefix) that trigger the guard. */
   targetSkills?: readonly string[];
   /** Additional paths allowed for write/replace in guarded mode.
-   *  Directory-type paths (ending with "/") match by prefix;
+   *  Directory-type paths (ending with "/") match by prefix or subpath;
    *  file-type paths match by exact filename or suffix (any path
    *  ending with "/<filename>"). Leading "./" is normalized and
    *  "~" is expanded to the home directory before matching. */
@@ -39,7 +39,7 @@ export interface GuardMachine {
   /** Rebuild state by scanning session history for target skill calls. */
   rebuildFromHistory(entries: readonly any[]): void;
   /** Check if a file path is allowed for write/replace in guarded mode.
-   *  Directory paths in allowlist use prefix matching; file paths use exact
+   *  Directory paths in allowlist use prefix or subpath matching; file paths use exact
    *  or suffix match. Leading "./" is normalized, and "~" is expanded to
    *  the home directory before matching.
    *  File-type entries match by exact filename or as the last path component
@@ -169,8 +169,8 @@ export function createStateMachine(options?: GuardMachineOptions): GuardMachine 
       }
       for (const allowedPath of allowWritePaths) {
         if (allowedPath.endsWith("/")) {
-          // Directory-type: prefix match
-          if (normalized.startsWith(allowedPath)) return true;
+          // Directory-type: prefix match or subpath match (for absolute/parent paths)
+          if (normalized.startsWith(allowedPath) || normalized.includes("/" + allowedPath)) return true;
         } else {
           // File-type: exact match or suffix match for any path ending with /<filename>
           if (normalized === allowedPath || normalized.endsWith("/" + allowedPath)) return true;

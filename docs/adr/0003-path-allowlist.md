@@ -1,6 +1,6 @@
 # ADR-0003: Path Allowlist for Guarded-Mode Writes
 
-In guarded mode, write/replace tool calls targeting `.scratch/`, `docs/`, or `CONTEXT.md` are allowed through a path allowlist with directory-prefix and file-suffix matching, enabling legitimate skill outputs while protecting the rest of the codebase.
+In guarded mode, write/replace tool calls targeting `.scratch/`, `docs/`, or `CONTEXT.md` are allowed through a path allowlist with directory prefix/subpath and file-suffix matching, enabling legitimate skill outputs while protecting the rest of the codebase.
 
 **Status**: accepted
 
@@ -20,14 +20,14 @@ Define an allowlist of paths that bypass the guarded-mode write/replace block:
 
 | Path | Match Rule | Rationale |
 |------|-----------|-----------|
-| `.scratch/` | Prefix (directory) | Scratch directory for all intermdiate/work-in-progress files |
-| `docs/` | Prefix (directory) | Documentation directory for ADRs, manuals, guides |
+| `.scratch/` | Prefix / subpath (directory) | Scratch directory for all intermdiate/work-in-progress files |
+| `docs/` | Prefix / subpath (directory) | Documentation directory for ADRs, manuals, guides |
 | `CONTEXT.md` | Suffix (file) | Root-level domain glossary; matches `CONTEXT.md`, `./CONTEXT.md`, `ri/CONTEXT.md`, `~/.../CONTEXT.md`; not `CONTEXT.md.bak` |
 
 Matching rules:
 - Leading `./` is normalized away before matching (`./.scratch/foo` → `.scratch/foo`).
 - Leading `~` is expanded to the user's home directory before matching (`~/project/CONTEXT.md` → `/home/user/project/CONTEXT.md`).
-- Directory paths (ending with `/`) match by prefix — any file under `.scratch/` or `docs/` is allowed.
+- Directory paths (ending with `/`) match by prefix or subpath — ".scratch/foo", "~/project/docs/bar", and "/abs/path/.scratch/x" are all allowed.
 - File paths (no trailing `/`) match by exact filename or suffix — `CONTEXT.md` matches
   `CONTEXT.md`, `./CONTEXT.md`, `ri/CONTEXT.md`, and `~/.../CONTEXT.md`. Does not match
   `CONTEXT.md.bak`, `CONTEXT.md.tmp`, or `backup-CONTEXT.md`.
@@ -46,7 +46,7 @@ Matching rules:
 
 - The allowlist is compiled into the `DEFAULT_ALLOW_WRITE_PATHS` constant in `guard.ts` and configurable via `GuardMachineOptions.allowWritePaths`.
 - Paths outside the allowlist (e.g., `src/`, `package.json`, `lib/`) remain fully blocked in guarded mode.
-- The `./` normalization and `~` expansion handle the most common relative and home-relative path variants;
+- The `./` normalization, `~` expansion, and directory subpath matching handle relative, home-relative, and absolute path variants;
   `../` traversal and symlinks remain unresolved by design.
 - File-type suffix matching enables cross-project CONTEXT.md writes (e.g., `~/Project/Pi/ri/CONTEXT.md`) while
   still blocking `CONTEXT.md.bak` and similar variants.

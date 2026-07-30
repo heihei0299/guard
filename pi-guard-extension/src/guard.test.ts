@@ -349,6 +349,34 @@ describe("isPathAllowed", () => {
     expect(g.isPathAllowed("backup-CONTEXT.md")).toBe(false);
   });
 
+  it("expands ~ to home directory for docs/ paths", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("~/Project/docs/guide.md")).toBe(true);
+    expect(g.isPathAllowed("~/Project/Pi/ri/docs/1.md")).toBe(true);
+    expect(g.isPathAllowed("~/Project/Pi/ri/docs/adr/2.md")).toBe(true);
+  });
+
+  it("expands ~ to home directory for .scratch/ paths", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("~/Project/.scratch/notes.txt")).toBe(true);
+    expect(g.isPathAllowed("~/Project/Pi/ri/.scratch/3.md")).toBe(true);
+  });
+
+  it("allows absolute paths containing docs/ via subpath match", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("/home/user/project/docs/guide.md")).toBe(true);
+    expect(g.isPathAllowed("/home/user/project/.scratch/tmp.txt")).toBe(true);
+    expect(g.isPathAllowed("/home/user/project/docs/sub/file.md")).toBe(true);
+  });
+
+  it("does not false-match subpath on similar directory names", () => {
+    const g = createStateMachine();
+    // directory prefix "docs/" should not match "documentation/" or "custom-docs/"
+    expect(g.isPathAllowed("documentation/guide.md")).toBe(false);
+    expect(g.isPathAllowed("/home/user/custom-docs/file.md")).toBe(false);
+    expect(g.isPathAllowed("/home/user/scratchwork/tmp.txt")).toBe(false);
+  });
+
   it("accepts custom allowWritePaths in options", () => {
     const g = createStateMachine({ allowWritePaths: ["custom/", "special.txt"] });
     expect(g.isPathAllowed("custom/file.ts")).toBe(true);
