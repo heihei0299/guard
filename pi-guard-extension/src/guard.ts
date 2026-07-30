@@ -5,6 +5,7 @@
  * Transitions are driven by input detection, agent_settled, and /guard:allow.
  */
 import { homedir } from "os";
+import type { GuardConfig } from "./config.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -47,22 +48,6 @@ export interface GuardMachine {
   isPathAllowed(filePath: string): boolean;
 }
 
-// ── Defaults ─────────────────────────────────────────────────────────────
-
-export const DEFAULT_TARGET_SKILLS = [
-  "to-spec",
-  "to-tickets",
-  "grill-me",
-  "grill-with-docs",
-  "wayfinder",
-] as const;
-
-export const DEFAULT_ALLOW_WRITE_PATHS = [
-  ".scratch/",
-  "docs/",
-  "CONTEXT.md",
-] as const;
-
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -87,9 +72,9 @@ export function extractTextContent(
 
 // ── State machine factory ────────────────────────────────────────────────
 
-export function createStateMachine(options?: GuardMachineOptions): GuardMachine {
-  const targetSkills = options?.targetSkills ?? DEFAULT_TARGET_SKILLS;
-  const allowWritePaths = options?.allowWritePaths ?? DEFAULT_ALLOW_WRITE_PATHS;
+export function createStateMachine(config?: GuardMachineOptions & { config?: GuardConfig }): GuardMachine {
+  const targetSkills = config?.targetSkills ?? config?.config?.targetSkills ?? DEFAULT_CONFIG.targetSkills;
+  const allowWritePaths = config?.allowWritePaths ?? config?.config?.allowWritePaths ?? DEFAULT_CONFIG.allowWritePaths;
   let state: GuardState = "normal";
 
   return {
@@ -180,3 +165,8 @@ export function createStateMachine(options?: GuardMachineOptions): GuardMachine 
     },
   };
 }
+
+// Re-export DEFAULT_CONFIG for backward compatibility in tests
+import { DEFAULT_CONFIG } from "./config.ts";
+export { DEFAULT_CONFIG, type GuardConfig } from "./config.ts";
+export { DEFAULT_TARGET_SKILLS, DEFAULT_ALLOW_WRITE_PATHS } from "./config.ts";

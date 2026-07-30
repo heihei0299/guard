@@ -259,13 +259,14 @@ Run a /grilling session.
     expect(g.isTargetSkill("/skill:to-spec")).toBe(false);
   });
 
-  it("DEFAULT_TARGET_SKILLS contains the 5 expected skills", () => {
+  it("DEFAULT_TARGET_SKILLS contains the 6 expected skills", () => {
     expect(DEFAULT_TARGET_SKILLS).toEqual([
       "to-spec",
       "to-tickets",
       "grill-me",
       "grill-with-docs",
       "wayfinder",
+      "grilling",
     ]);
   });
 });

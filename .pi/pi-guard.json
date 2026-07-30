@@ -1,0 +1,25 @@
+{
+  "targetSkills": [
+    "to-spec",
+    "to-tickets",
+    "grill-me",
+    "grilling",
+    "grill-with-docs",
+    "wayfinder",
+    "code-review",
+    "codebase-design",
+    "diagnosing-bugs",
+    "domain-modeling",
+    "prototype",
+    "research",
+    "resolving-merge-conflicts",
+    "tdd",
+    "implement"
+  ],
+  "allowWritePaths": [
+    ".scratch/",
+    "docs/",
+    "CONTEXT.md",
+    ".pi/"
+  ]
+}
