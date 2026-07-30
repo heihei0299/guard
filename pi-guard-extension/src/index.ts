@@ -317,50 +317,6 @@ export function createGuard(options?: GuardExtensionOptions) {
               return await handleDeny(result, toolName, command, ctx);
           }
         }
-        if (toolName === "bash" && event.input?.command) {
-          const command = event.input.command as string;
-
-          // First, check if it's a readonly command (transitional: keep old behavior)
-          if (isBashReadonly(command)) {
-            return undefined;
-          }
-
-          // Evaluate with rule engine
-          const result = evaluate("bash", command, currentRuleset);
-
-          switch (result.action) {
-            case "allow":
-              return undefined; // Pass through
-            case "ask":
-              if (ctx.hasUI) {
-                const confirmed = await ctx.ui.confirm(
-                  formatAskReason(result, toolName, command),
-                );
-                if (confirmed) return undefined;
-                ctx.ui.notify("操作已取消 / Operation cancelled", "info");
-                ctx.abort();
-                return {
-                  block: true,
-                  reason: `操作需要用户确认 / Operation requires confirmation: ${command}`,
-                };
-              }
-              ctx.abort();
-              return {
-                block: true,
-                reason: `此操作需要用户确认（无 UI）/ Operation requires confirmation (no UI): ${command}`,
-              };
-            case "deny": {
-              const reason = formatBlockReason(result, toolName, command);
-              if (ctx.hasUI) {
-                ctx.ui.notify(reason, "warning");
-              }
-              ctx.abort();
-              return { block: true, reason };
-            }
-          }
-        }
-        // Fallback: pass through for unevaluated tools
-        return undefined;
         // Fallback: pass through for unevaluated tools
         return undefined;
       }
