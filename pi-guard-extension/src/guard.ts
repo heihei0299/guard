@@ -83,7 +83,7 @@ export function createStateMachine(config?: GuardMachineOptions & { config?: Gua
     },
 
     isBlocking(): boolean {
-      return state === "guarded" || state === "skill_active";
+      return state === "guarded";
     },
 
     isTargetSkill(command: string): boolean {
