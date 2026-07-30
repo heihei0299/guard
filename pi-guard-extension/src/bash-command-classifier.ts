@@ -21,6 +21,7 @@ const READONLY_COMMANDS = new Set([
   "ps", "top", "htop", "uptime", "date", "cal",
   "ping", "dig", "nslookup", "host",
   "curl",
+  "rtk",
 ]);
 
 const WRITE_COMMANDS = new Set([
