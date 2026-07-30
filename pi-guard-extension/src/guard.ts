@@ -4,6 +4,7 @@
  * Three states: normal → skill_active → guarded
  * Transitions are driven by input detection, agent_settled, and /guard:allow.
  */
+import { homedir } from "os";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -13,8 +14,10 @@ export interface GuardMachineOptions {
   /** List of skill names (without "/skill:" prefix) that trigger the guard. */
   targetSkills?: readonly string[];
   /** Additional paths allowed for write/replace in guarded mode.
-   *  Directory-type paths (ending with "/") match by prefix,
-   *  file-type paths match exactly. */
+   *  Directory-type paths (ending with "/") match by prefix;
+   *  file-type paths match by exact filename or suffix (any path
+   *  ending with "/<filename>"). Leading "./" is normalized and
+   *  "~" is expanded to the home directory before matching. */
   allowWritePaths?: readonly string[];
 }
 
@@ -36,8 +39,11 @@ export interface GuardMachine {
   /** Rebuild state by scanning session history for target skill calls. */
   rebuildFromHistory(entries: readonly any[]): void;
   /** Check if a file path is allowed for write/replace in guarded mode.
-   *  Directory paths in allowlist use prefix matching; file paths use exact match.
-   *  Leading "./" is normalized before matching. */
+   *  Directory paths in allowlist use prefix matching; file paths use exact
+   *  or suffix match. Leading "./" is normalized, and "~" is expanded to
+   *  the home directory before matching.
+   *  File-type entries match by exact filename or as the last path component
+   *  (e.g. "CONTEXT.md" matches both "CONTEXT.md" and "ri/CONTEXT.md"). */
   isPathAllowed(filePath: string): boolean;
 }
 
@@ -154,14 +160,20 @@ export function createStateMachine(options?: GuardMachineOptions): GuardMachine 
     },
 
     isPathAllowed(filePath: string): boolean {
-      const normalized = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+      // Normalize ./ prefix
+      let normalized = filePath.startsWith("./") ? filePath.slice(2) : filePath;
+      // Expand ~ to home directory for cross-project path support
+      if (normalized.startsWith("~")) {
+        const home = homedir();
+        normalized = normalized === "~" ? home : home + normalized.slice(1);
+      }
       for (const allowedPath of allowWritePaths) {
         if (allowedPath.endsWith("/")) {
           // Directory-type: prefix match
           if (normalized.startsWith(allowedPath)) return true;
         } else {
-          // File-type: exact match
-          if (normalized === allowedPath) return true;
+          // File-type: exact match or suffix match for any path ending with /<filename>
+          if (normalized === allowedPath || normalized.endsWith("/" + allowedPath)) return true;
         }
       }
       return false;

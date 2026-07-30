@@ -329,6 +329,26 @@ describe("isPathAllowed", () => {
     expect(g.isPathAllowed("documentation/guide.md")).toBe(false);
   });
 
+  it("expands ~ to home directory for CONTEXT.md matching", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("~/Project/CONTEXT.md")).toBe(true);
+    expect(g.isPathAllowed("~/Project/Pi/ri/CONTEXT.md")).toBe(true);
+  });
+
+  it("allows CONTEXT.md via suffix match for cross-project paths", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("ri/CONTEXT.md")).toBe(true);
+    expect(g.isPathAllowed("./ri/CONTEXT.md")).toBe(true);
+    expect(g.isPathAllowed("src/utils/CONTEXT.md")).toBe(true);
+  });
+
+  it("still rejects CONTEXT.md.bak and similar variants", () => {
+    const g = createStateMachine();
+    expect(g.isPathAllowed("CONTEXT.md.bak")).toBe(false);
+    expect(g.isPathAllowed("CONTEXT.md.tmp")).toBe(false);
+    expect(g.isPathAllowed("backup-CONTEXT.md")).toBe(false);
+  });
+
   it("accepts custom allowWritePaths in options", () => {
     const g = createStateMachine({ allowWritePaths: ["custom/", "special.txt"] });
     expect(g.isPathAllowed("custom/file.ts")).toBe(true);
