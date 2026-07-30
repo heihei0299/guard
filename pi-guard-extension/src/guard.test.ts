@@ -172,6 +172,16 @@ Run a /grilling session.
     expect(g.isBlocking()).toBe(false);
   });
 
+  it("isBlocking returns true in skill_active state (BUG: currently false)", () => {
+    const g = createStateMachine();
+    expect(g.isBlocking()).toBe(false); // normal
+    g.handleInput("/skill:grill-with-docs");
+    expect(g.getState()).toBe("skill_active");
+    // BUG: isBlocking() should be true in skill_active —
+    // otherwise the model writes code in the same turn as skill invocation.
+    expect(g.isBlocking()).toBe(true);
+  });
+
   // ── Session history rebuild ─────────────────────────────────────────────
 
   it("rebuildFromHistory sets guarded when user entry contains target skill", () => {

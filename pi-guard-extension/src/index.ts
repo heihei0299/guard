@@ -16,8 +16,16 @@ export interface GuardExtensionOptions {
   targetSkills?: readonly string[];
 }
 
-/** Bilingual block message shown when an action is intercepted. */
-const BLOCK_REASON = [
+/** Bilingual block message shown in skill_active state (skill in progress). */
+const BLOCK_REASON_SKILL_ACTIVE = [
+  "🔒 技能对话中，请按技能流程执行，禁止擅自操作。",
+  "Guard mode: skill in progress, follow the skill process, no unauthorized writes.",
+  "请先完成技能讨论再写代码。",
+  "Complete the skill process before writing.",
+].join("\n");
+
+/** Bilingual block message shown in guarded state (skill completed). */
+const BLOCK_REASON_GUARDED = [
   "🔒 技能讨论已完成，禁止擅自操作。",
   "Guard mode: skill conversation completed, unauthorized actions blocked.",
   "请使用 /guard:allow 临时关闭守卫。",
@@ -92,13 +100,19 @@ export function createGuard(options?: GuardExtensionOptions) {
 
       // Show notification in UI mode
       if (ctx.hasUI) {
-        ctx.ui.notify(BLOCK_REASON, "warning");
+        const msg = guard.getState() === "skill_active"
+          ? BLOCK_REASON_SKILL_ACTIVE
+          : BLOCK_REASON_GUARDED;
+        ctx.ui.notify(msg, "warning");
       }
 
       // Abort the agent turn
       ctx.abort();
 
-      return { block: true, reason: BLOCK_REASON };
+      const reason = guard.getState() === "skill_active"
+        ? BLOCK_REASON_SKILL_ACTIVE
+        : BLOCK_REASON_GUARDED;
+      return { block: true, reason };
     });
 
     // ── /guard:allow command ─────────────────────────────────────────
