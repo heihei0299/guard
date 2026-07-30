@@ -3,7 +3,7 @@
 In guarded mode, selected bash write commands (`mkdir`, `touch`, `rm`, `mv`, `cp`) and shell redirections (`>`, `>>`) are allowed through a path-aware allowlist check that extracts literal path arguments and validates them against the allowlist, instead of being unconditionally blocked by the static command-name classifier.
 
 **Status**: accepted
-
+**Status**: superseded by ADR-0005 (Simplify Bash Permission Control)
 ## Context
 
 ADR-0002 introduced `isBashReadonly()` to classify bash commands by static token analysis: readonly commands pass through, write commands are blocked. This works for the common case but is too coarse for legitimate write operations on paths that the guard already permits for `write`/`replace` tools (`.scratch/`, `docs/`, `CONTEXT.md`).

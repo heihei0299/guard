@@ -6,7 +6,7 @@ import {
   type GuardMachineOptions,
 } from "./guard.ts";
 import { isBashReadonly } from "./bash-command-classifier.ts";
-import { isBashPathAllowed } from "./bash-path-allowlist.ts";
+
 // ── Exports ────────────────────────────────────────────────────────────
 
 export type { GuardState, GuardMachine, GuardMachineOptions } from "./guard.ts";
@@ -98,14 +98,10 @@ export function createGuard(options?: GuardExtensionOptions) {
         }
       }
 
-      // bash: check if the command is readonly (first stage)
+      // bash: classify command as readonly or write
       if (toolName === "bash" && event.input?.command) {
         const command = event.input.command as string;
         if (isBashReadonly(command)) {
-          return undefined;
-        }
-        // Second stage: path-aware check for write commands
-        if (isBashPathAllowed(command, [...guard.getAllowWritePaths()])) {
           return undefined;
         }
       }

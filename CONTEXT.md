@@ -17,18 +17,15 @@ _Avoid_: 关闭状态、未激活
 _Avoid_: 技能中、进行中
 
 **Guarded Mode（守卫模式）**:
-技能对话完成（`agent_settled` 事件触发）后自动进入的状态。拦截 write/replace/bash 中的写入意图调用，只放行只读操作和白名单路径的写入。bash 路径白名单对 `mkdir`、`touch`、`rm`、`mv`、`cp`、`>` 重定向等命令做路径感知检查，路径在白名单内则放行。用户可通过 `/guard:allow` 退出此状态。
-_Avoid_: 锁定模式、拦截模式
+技能对话完成（`agent_settled` 事件触发）后自动进入的状态。拦截 write/replace/bash 中的写入意图调用，放行只读操作、白名单路径的写入以及 `mkdir` 命令。用户可通过 `/guard:allow` 退出此状态。
 **Target Skill（目标技能）**:
 可触发守卫的技能名称。用户的 `/skill:<name>` 命令如果匹配目标技能列表，会将守卫从 normal 切换到 skill_active。默认列表：`to-spec`、`to-tickets`、`grill-me`、`grill-with-docs`、`wayfinder`。
 _Avoid_: 受控技能、触发技能
 
 **Path Allowlist（路径白名单）**:
-在 guarded 模式下仍允许 write/replace 操作的路径集合，同时作为 bash 路径感知检查（`isBashPathAllowed`）的参考白名单。目录路径（以 `/` 结尾）使用前缀匹配，文件路径使用精确匹配。默认包含 `.scratch/`、`docs/`、`CONTEXT.md`。
-_Avoid_: 例外路径、放行列表
+在 guarded 模式下仍允许 write/replace 操作的路径集合。目录路径（以 `/` 结尾）使用前缀匹配，文件路径使用精确匹配。默认包含 `.scratch/`、`docs/`、`CONTEXT.md`。
 **Bash Command Classification（Bash 命令分类）**:
-两阶段检查流程：第一阶段 `isBashReadonly()` 通过静态分析（第一 token + 子命令）将命令分类为"只读"（放行）或"写入"（需二次检查）；第二阶段 `isBashPathAllowed()` 对部分写入命令（`mkdir`、`touch`、`rm`、`mv`、`cp`、`>` 重定向）做路径感知检查，路径在白名单内则放行。未知命令保守拦截。
-_Avoid_: Bash 过滤、命令审计
+单阶段检查：`isBashReadonly()` 通过静态分析（第一 token + 子命令）将命令分类为"只读"（放行）或"写入"（拦截）。`mkdir` 视为只读命令放行。未知命令保守拦截。
 
 **`/guard:allow` 命令**:
 用户手动关闭守卫的 pi 命令。将守卫状态从 guarded 或 skill_active 切换到 normal。调用时通过 `ctx.ui.notify` 显示确认提示。

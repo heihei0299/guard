@@ -47,10 +47,11 @@ export const DEFAULT_CONFIG: GuardConfig = {
     "ps", "top", "htop", "uptime", "date", "cal",
     "ping", "dig", "nslookup", "host",
     "curl",
+    "mkdir",
   ],
   writeCommands: [
     "sed", "awk", "tee", "dd", "mkfs", "mount",
-    "touch", "mkdir", "rmdir", "rm", "mv", "cp", "ln",
+    "touch", "rmdir", "rm", "mv", "cp", "ln",
     "chmod", "chown", "chattr",
     "npm", "uv", "pip",
   ],
