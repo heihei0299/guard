@@ -169,15 +169,17 @@ describe("createGuard", () => {
         createMockCtx(),
       );
 
-      // After input, state is skill_active (not blocking yet)
+      // After input, state is skill_active (should block writes)
       const toolHandler = handlers["tool_call"];
       const result = await toolHandler(
         { toolName: "write", args: {} },
         createMockCtx(),
       );
-      expect(result).toBeUndefined();
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
     });
-
     it("returns continue action", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
