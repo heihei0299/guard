@@ -345,6 +345,17 @@ describe("createGuard", () => {
       });
     });
 
+    it("allows ls with stderr-to-stdout redirect (2>&1) in guarded mode", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupGuarded(pi, handlers);
+      const result = await handlers["tool_call"](
+        { toolName: "bash", input: { command: "ls /home/user/project/CONTEXT.md 2>&1" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
+
     it("allows git readonly commands (git status) in guarded mode", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
