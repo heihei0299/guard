@@ -475,7 +475,7 @@ describe("createGuard", () => {
       });
     });
 
-    it("allows read tool (not evaluated by rule engine)", async () => {
+    it("blocks read tool with deny-all config", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);
       await setupFullSession(pi, handlers, denyAllConfig());
@@ -484,9 +484,34 @@ describe("createGuard", () => {
         { toolName: "read", input: { path: "src/index.ts" } },
         createMockCtx(),
       );
+      expect(result).toEqual({
+        block: true,
+        reason: expect.stringContaining("🔒"),
+      });
+    });
+
+    it("allows read tool when path matches allow", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+      await setupFullSession(pi, handlers, oldAllowlistConfig());
+
+      const result = await handlers["tool_call"](
+        { toolName: "read", input: { path: ".scratch/notes.txt" } },
+        createMockCtx(),
+      );
       expect(result).toBeUndefined();
     });
 
+    it("allows read tool when rule engine is not active", async () => {
+      const { pi, handlers } = createMockPi();
+      createGuard()(pi);
+
+      const result = await handlers["tool_call"](
+        { toolName: "read", input: { path: "src/index.ts" } },
+        createMockCtx(),
+      );
+      expect(result).toBeUndefined();
+    });
     it("allows grep tool (not evaluated by rule engine)", async () => {
       const { pi, handlers } = createMockPi();
       createGuard()(pi);

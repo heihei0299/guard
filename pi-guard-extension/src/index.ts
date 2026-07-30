@@ -6,7 +6,8 @@ import {
   type GuardMachineOptions,
 } from "./guard.ts";
 import { isBashReadonly } from "./bash-command-classifier.ts";
-import { evaluate, evaluateAnyValue, composeRuleset, synthesizeDefaults, normalizeFlatConfig } from "./rule-engine.ts";
+import { evaluate, evaluateAnyValue, wildcardMatch, composeRuleset, synthesizeDefaults, normalizeFlatConfig } from "./rule-engine.ts";
+import type { Rule, Ruleset } from "./rule-engine.ts";
 import { getPathPolicyValues } from "./path-normalizer.ts";
 import { loadPermissionConfig } from "./permission-config.ts";
 import { buildGuardPrompt } from "./prompt-injector.ts";
@@ -86,6 +87,41 @@ function formatAskReason(rule: Rule, toolName: string, value: string): string {
     lines.push(`原因：${rule.reason}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * Handle ask action: prompt user for confirmation or block if no UI.
+ */
+async function handleAsk(rule: Rule, toolName: string, value: string, ctx: any) {
+  if (ctx.hasUI) {
+    const confirmed = await ctx.ui.confirm(
+      formatAskReason(rule, toolName, value),
+    );
+    if (confirmed) return undefined;
+    ctx.ui.notify("操作已取消 / Operation cancelled", "info");
+    ctx.abort();
+    return {
+      block: true,
+      reason: `操作需要用户确认 / Operation requires confirmation: ${value}`,
+    };
+  }
+  ctx.abort();
+  return {
+    block: true,
+    reason: `此操作需要用户确认（无 UI）/ Operation requires confirmation (no UI): ${value}`,
+  };
+}
+
+/**
+ * Handle deny action: block operation with reason.
+ */
+async function handleDeny(rule: Rule, toolName: string, value: string, ctx: any) {
+  const reason = formatBlockReason(rule, toolName, value);
+  if (ctx.hasUI) {
+    ctx.ui.notify(reason, "warning");
+  }
+  ctx.abort();
+  return { block: true, reason };
 }
 
 // ── Extension factory ──────────────────────────────────────────────────
@@ -219,56 +255,68 @@ export function createGuard(options?: GuardExtensionOptions) {
 
       // ── Rule engine is active: evaluate with rule engine ───────────
       if (ruleActive) {
-        // Currently only evaluate write/replace/bash (progressive, extend later)
-        if (toolName !== "write" && toolName !== "replace" && toolName !== "bash") {
-          return undefined;
-        }
-
-        // ── write / replace: path surface evaluation ────────────────
-        if ((toolName === "write" || toolName === "replace") && event.input?.path) {
+        // ── Path-bearing tools: evaluate on tool-specific + path surface ──
+        if (event.input?.path) {
           const filePath = event.input.path as string;
           const pathValues = getPathPolicyValues(filePath, {
             cwd: ctx.cwd ?? process.cwd(),
           });
 
-          const result = evaluateAnyValue("path", pathValues, currentRuleset);
+          // Evaluate on path surface first (most specific to the file operation)
+          const pathResult = evaluateAnyValue("path", pathValues, currentRuleset);
 
-          switch (result.rule.action) {
-            case "allow":
-              return undefined; // Pass through
-            case "ask":
-              if (ctx.hasUI) {
-                // Show confirm dialog
-                const confirmed = await ctx.ui.confirm(
-                  formatAskReason(result.rule, toolName, result.value),
-                );
-                if (confirmed) return undefined; // User confirmed
-                // User declined → block
-                ctx.ui.notify("操作已取消 / Operation cancelled", "info");
-                ctx.abort();
-                return {
-                  block: true,
-                  reason: `操作需要用户确认 / Operation requires confirmation: ${filePath}`,
-                };
-              }
-              // No UI → block
-              ctx.abort();
-              return {
-                block: true,
-                reason: `此操作需要用户确认（无 UI）/ Operation requires confirmation (no UI): ${filePath}`,
-              };
-            case "deny": {
-              const reason = formatBlockReason(result.rule, toolName, result.value);
-              if (ctx.hasUI) {
-                ctx.ui.notify(reason, "warning");
-              }
-              ctx.abort();
-              return { block: true, reason };
+          // If path surface has a non-default rule, use it (highest priority)
+          if (pathResult.rule.layer !== "default" && pathResult.rule.surface === "path") {
+            switch (pathResult.rule.action) {
+              case "allow": return undefined;
+              case "ask": return await handleAsk(pathResult.rule, toolName, filePath, ctx);
+              case "deny": return await handleDeny(pathResult.rule, toolName, filePath, ctx);
             }
+          }
+
+          // Next, check tool-specific surface (e.g., "read", "write")
+          // Only consider rules whose surface matches the tool name (not catch-all "*")
+          for (let i = currentRuleset.length - 1; i >= 0; i--) {
+            const rule = currentRuleset[i];
+            if (rule.surface === toolName && wildcardMatch(rule.pattern, filePath)) {
+              switch (rule.action) {
+                case "allow": return undefined;
+                case "ask": return await handleAsk(rule, toolName, filePath, ctx);
+                case "deny": return await handleDeny(rule, toolName, filePath, ctx);
+              }
+            }
+          }
+
+          // Fall back to catch-all "*" rules (any surface)
+          const defaultResult = evaluate("*", filePath, currentRuleset);
+          switch (defaultResult.action) {
+            case "allow": return undefined;
+            case "ask": return await handleAsk(defaultResult, toolName, filePath, ctx);
+            case "deny": return await handleDeny(defaultResult, toolName, filePath, ctx);
           }
         }
 
         // ── bash: bash surface evaluation ───────────────────────────
+        if (toolName === "bash" && event.input?.command) {
+          const command = event.input.command as string;
+
+          // First, check if it's a readonly command (transitional: keep old behavior)
+          if (isBashReadonly(command)) {
+            return undefined;
+          }
+
+          // Evaluate with rule engine
+          const result = evaluate("bash", command, currentRuleset);
+
+          switch (result.action) {
+            case "allow":
+              return undefined;
+            case "ask":
+              return await handleAsk(result, toolName, command, ctx);
+            case "deny":
+              return await handleDeny(result, toolName, command, ctx);
+          }
+        }
         if (toolName === "bash" && event.input?.command) {
           const command = event.input.command as string;
 
@@ -311,7 +359,8 @@ export function createGuard(options?: GuardExtensionOptions) {
             }
           }
         }
-
+        // Fallback: pass through for unevaluated tools
+        return undefined;
         // Fallback: pass through for unevaluated tools
         return undefined;
       }
