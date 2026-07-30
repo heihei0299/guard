@@ -6,9 +6,11 @@
  *
  * Strategy:
  * 1. If the command contains shell redirect operators (`>`, `>>`, `<`), classify as write.
- * 2. Check the first word against known readonly / write command sets.
- * 3. `git` subcommands are classified by their subcommand token.
- * 4. Default: return `false` (conservative — block when uncertain).
+ * 2. If the first token is a passthrough wrapper (e.g. `rtk`), skip it and
+ *    recursively check the inner command.
+ * 3. Check the first word against known readonly / write command sets.
+ * 4. `git` subcommands are classified by their subcommand token.
+ * 5. Default: return `false` (conservative — block when uncertain).
  */
 
 // ── Command classification sets ───────────────────────────────────────
@@ -21,6 +23,9 @@ const READONLY_COMMANDS = new Set([
   "ps", "top", "htop", "uptime", "date", "cal",
   "ping", "dig", "nslookup", "host",
   "curl",
+]);
+
+const PASSTHROUGH_COMMANDS = new Set([
   "rtk",
 ]);
 
@@ -34,11 +39,12 @@ const WRITE_COMMANDS = new Set([
 const GIT_READONLY_SUBCOMMANDS = new Set([
   "log", "status", "diff", "show", "branch", "tag",
   "describe", "rev-parse", "ls-files",
+  "stash",
 ]);
 
 const GIT_WRITE_SUBCOMMANDS = new Set([
   "add", "commit", "push", "pull", "merge", "rebase",
-  "reset", "checkout", "stash",
+  "reset", "checkout",
 ]);
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -66,7 +72,6 @@ function isGitReadonly(tokens: string[]): boolean {
   }
 
   if (GIT_WRITE_SUBCOMMANDS.has(sub)) {
-    // `git stash list` is handled above, so all stash here is write
     return false;
   }
 
@@ -91,6 +96,12 @@ export function isBashReadonly(command: string): boolean {
 
   const tokens = trimmed.split(/\s+/);
   const cmd = tokens[0];
+
+  // Passthrough wrapper: skip and check inner command
+  if (PASSTHROUGH_COMMANDS.has(cmd)) {
+    const rest = tokens.slice(1).join(" ");
+    return rest ? isBashReadonly(rest) : false;
+  }
 
   // Git subcommand classification
   if (cmd === "git" && tokens.length >= 2) {
