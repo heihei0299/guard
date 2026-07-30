@@ -7,6 +7,12 @@
  *   3. Project-local: <projectRoot>/.pi/pi-guard.json
  *
  * Later sources override earlier ones (project overrides user, user overrides defaults).
+ *
+ * @deprecated The old config format (targetSkills, allowWritePaths, readonlyCommands, etc.)
+ * is deprecated. Use the new permission-based config format instead:
+ * - `permission`: FlatPermissionConfig for rule engine
+ * - `autoActivateAfterSkill`: boolean (default: true)
+ * See ADR-0006 for details.
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -15,6 +21,7 @@ import { resolve, join } from "path";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
+/** @deprecated Use `permission` field in new config instead. */
 export interface GuardConfig {
   /** Skill names that trigger the guard (without "/skill:" prefix). */
   targetSkills: string[];
@@ -34,8 +41,48 @@ export interface GuardConfig {
   gitWriteSubcommands: string[];
 }
 
+/**
+ * New permission-based configuration for rule engine.
+ * Replaces the old GuardConfig fields.
+ */
+export interface FlatPermissionConfig {
+  /** Surface-level rule mapping.
+   *  - `"*"` sets the default action for all surfaces
+   *  - `"path"`, `"bash"`, `"read"`, `"write"`, `"edit"`, etc. set surface-specific rules
+   *  - Each surface value can be a string (applied to all patterns) or a
+   *    Record<string, string | DenyWithReason> for pattern-level rules
+   */
+  [surface: string]:
+    | string
+    | Record<string, string | { action: string; reason?: string }>
+    | undefined;
+}
+
+/** @deprecated Use `autoActivateAfterSkill` in new config instead. */
+export interface GuardNewConfig {
+  /** Permission rules for the rule engine. */
+  permission?: FlatPermissionConfig;
+  /** Whether to auto-activate the rule engine after a skill completes. Default: true. */
+  autoActivateAfterSkill?: boolean;
+  /** @deprecated Old config fields kept for backward compatibility. */
+  targetSkills?: string[];
+  /** @deprecated */
+  allowWritePaths?: string[];
+  /** @deprecated */
+  readonlyCommands?: string[];
+  /** @deprecated */
+  writeCommands?: string[];
+  /** @deprecated */
+  passthroughCommands?: string[];
+  /** @deprecated */
+  gitReadonlySubcommands?: string[];
+  /** @deprecated */
+  gitWriteSubcommands?: string[];
+}
+
 // ── Defaults ─────────────────────────────────────────────────────────────
 
+/** @deprecated Will be replaced by permission-based defaults. */
 export const DEFAULT_CONFIG: GuardConfig = {
   targetSkills: ["to-spec", "to-tickets", "grill-me", "grill-with-docs", "wayfinder", "grilling"],
   allowWritePaths: [".scratch/", "docs/", "CONTEXT.md"],
@@ -124,6 +171,8 @@ function mergeConfig(base: GuardConfig, partial: Partial<GuardConfig>): GuardCon
  * @param projectRoot - Optional project root directory for project-local config.
  *                      If omitted, project-local config is not loaded.
  * @returns Merged GuardConfig
+ *
+ * @deprecated Use loadPermissionConfig() instead for new permission-based config.
  */
 export function loadGuardConfig(projectRoot?: string): GuardConfig {
   let config: GuardConfig = { ...DEFAULT_CONFIG };

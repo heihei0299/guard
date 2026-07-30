@@ -1,54 +1,47 @@
 /**
  * Guard state machine for pi-guard-extension.
  *
- * Three states: normal → skill_active → guarded
+ * Two states: normal ↔ skill_active
+ * After skill_active ends (agent_settled), the rule engine can be activated.
  * Transitions are driven by input detection, agent_settled, and /guard:allow.
  */
-import { homedir } from "os";
 import type { GuardConfig } from "./config.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
-export type GuardState = "normal" | "skill_active" | "guarded";
+export type GuardState = "normal" | "skill_active";
 
 export interface GuardMachineOptions {
   /** List of skill names (without "/skill:" prefix) that trigger the guard. */
   targetSkills?: readonly string[];
-  /** Additional paths allowed for write/replace in guarded mode.
-   *  Directory-type paths (ending with "/") match by prefix or subpath;
-   *  file-type paths match by exact filename or suffix (any path
-   *  ending with "/<filename>"). Leading "./" is normalized and
-   *  "~" is expanded to the home directory before matching. */
-  allowWritePaths?: readonly string[];
+  /** Whether to auto-activate the rule engine after a skill completes.
+   *  Default: true */
+  autoActivateAfterSkill?: boolean;
 }
 
 export interface GuardMachine {
   /** Current state. */
   getState(): GuardState;
-  /** Whether the guard is currently blocking tools. */
-  isBlocking(): boolean;
+  /** Whether the rule engine is currently active. */
+  isRuleEngineActive(): boolean;
+  /** Activate the rule engine (used after skill completes or via /guard-start). */
+  activateRuleEngine(): void;
+  /** Deactivate the rule engine (via /guard:allow). */
+  deactivateRuleEngine(): void;
   /** Check if a command string matches a target skill. */
   isTargetSkill(command: string): boolean;
   /** Process an input text to detect target skill commands. */
   handleInput(text: string): void;
-  /** Handle agent_settled → transition to guarded if in skill_active. */
+  /** Handle agent_settled → if autoActivateAfterSkill, activate rule engine. */
   handleAgentSettled(): void;
-  /** Handle /guard:allow → transition to normal. */
+  /** Handle /guard:allow → transition to normal, deactivate rule engine. */
   handleAllow(): void;
-  /** Reset to normal state. */
+  /** Reset to normal state, deactivate rule engine. */
   reset(): void;
   /** Rebuild state by scanning session history for target skill calls. */
   rebuildFromHistory(entries: readonly any[]): void;
-  /** Check if a file path is allowed for write/replace in guarded mode.
-   *  Directory paths in allowlist use prefix or subpath matching; file paths use exact
-   *  or suffix match. Leading "./" is normalized, and "~" is expanded to
-   *  the home directory before matching.
-   *  File-type entries match by exact filename or as the last path component
-   *  (e.g. "CONTEXT.md" matches both "CONTEXT.md" and "ri/CONTEXT.md"). */
-  isPathAllowed(filePath: string): boolean;
-  /** Get the current allow-write paths list. */
-  getAllowWritePaths(): readonly string[];
 }
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -75,16 +68,25 @@ export function extractTextContent(
 
 export function createStateMachine(config?: GuardMachineOptions & { config?: GuardConfig }): GuardMachine {
   const targetSkills = config?.targetSkills ?? config?.config?.targetSkills ?? DEFAULT_CONFIG.targetSkills;
-  const allowWritePaths = config?.allowWritePaths ?? config?.config?.allowWritePaths ?? DEFAULT_CONFIG.allowWritePaths;
+  const autoActivateAfterSkill = config?.autoActivateAfterSkill ?? true;
   let state: GuardState = "normal";
+  let ruleEngineActive = false;
 
   return {
     getState(): GuardState {
       return state;
     },
 
-    isBlocking(): boolean {
-      return state === "guarded" || state === "skill_active";
+    isRuleEngineActive(): boolean {
+      return ruleEngineActive;
+    },
+
+    activateRuleEngine(): void {
+      ruleEngineActive = true;
+    },
+
+    deactivateRuleEngine(): void {
+      ruleEngineActive = false;
     },
 
     isTargetSkill(command: string): boolean {
@@ -106,23 +108,30 @@ export function createStateMachine(config?: GuardMachineOptions & { config?: Gua
 
       if (this.isTargetSkill(trimmed)) {
         state = "skill_active";
+        // Entering skill_active deactivates the rule engine
+        ruleEngineActive = false;
       }
       // Non-target-skill commands do not change state.
     },
 
     handleAgentSettled(): void {
       if (state === "skill_active") {
-        state = "guarded";
+        state = "normal";
+        if (autoActivateAfterSkill) {
+          ruleEngineActive = true;
+        }
       }
-      // No-op in other states.
+      // No-op in normal state.
     },
 
     handleAllow(): void {
       state = "normal";
+      ruleEngineActive = false;
     },
 
     reset(): void {
       state = "normal";
+      ruleEngineActive = false;
     },
 
     rebuildFromHistory(entries: readonly any[]): void {
@@ -139,36 +148,15 @@ export function createStateMachine(config?: GuardMachineOptions & { config?: Gua
         const trimmed = text.trim();
 
         if (this.isTargetSkill(trimmed)) {
-          state = "guarded";
-          break; // Once we find one, we know we're in guarded territory.
+          state = "normal";
+          ruleEngineActive = true;
+          break; // Once we find one, we know we need rule engine active.
         }
       }
-    },
-
-    isPathAllowed(filePath: string): boolean {
-      // Normalize ./ prefix
-      let normalized = filePath.startsWith("./") ? filePath.slice(2) : filePath;
-      // Expand ~ to home directory for cross-project path support
-      if (normalized.startsWith("~")) {
-        const home = homedir();
-        normalized = normalized === "~" ? home : home + normalized.slice(1);
-      }
-      for (const allowedPath of allowWritePaths) {
-        if (allowedPath.endsWith("/")) {
-          // Directory-type: prefix match or subpath match (for absolute/parent paths)
-          if (normalized.startsWith(allowedPath) || normalized.includes("/" + allowedPath)) return true;
-        } else {
-          // File-type: exact match or suffix match for any path ending with /<filename>
-          if (normalized === allowedPath || normalized.endsWith("/" + allowedPath)) return true;
-        }
-      }
-      return false;
-    },
-    getAllowWritePaths(): readonly string[] {
-      return allowWritePaths;
     },
   };
 }
+
 // Re-export DEFAULT_CONFIG for backward compatibility in tests
 import { DEFAULT_CONFIG } from "./config.ts";
 export { DEFAULT_CONFIG, type GuardConfig } from "./config.ts";

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractTextContent, createStateMachine, DEFAULT_TARGET_SKILLS, DEFAULT_ALLOW_WRITE_PATHS } from "./guard.ts";
+import { extractTextContent, createStateMachine, DEFAULT_TARGET_SKILLS } from "./guard.ts";
 
 // ── Slice 1: helpers + skeleton ───────────────────────────────────────
 
@@ -31,10 +31,14 @@ describe("extractTextContent", () => {
 });
 
 describe("createStateMachine", () => {
-  it("starts in normal state and is not blocking", () => {
+  it("starts in normal state", () => {
     const g = createStateMachine();
     expect(g.getState()).toBe("normal");
-    expect(g.isBlocking()).toBe(false);
+  });
+
+  it("rule engine is not active by default", () => {
+    const g = createStateMachine();
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
   it("detects target skill commands with isTargetSkill", () => {
@@ -58,7 +62,7 @@ describe("createStateMachine", () => {
     // Non-target skill in XML tag
     expect(g.isTargetSkill('<skill name="unknown">')).toBe(false);
     // Plain text - no match
-    expect(g.isTargetSkill('plain text')).toBe(false);
+    expect(g.isTargetSkill("plain text")).toBe(false);
   });
 
   it("detects XML skill tag embedded in larger message text", () => {
@@ -110,87 +114,121 @@ Run a /grilling session.
     expect(g.getState()).toBe("skill_active");
   });
 
-  it("full flow: XML skill tag → guarded after agent_settled", () => {
+  it("full flow: XML skill tag → agent_settled → rule engine activated with autoActivateAfterSkill default", () => {
     const g = createStateMachine();
+    expect(g.isRuleEngineActive()).toBe(false);
+
     g.handleInput('<skill name="to-spec">');
     expect(g.getState()).toBe("skill_active");
+
     g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
-    expect(g.isBlocking()).toBe(true);
+    // Default autoActivateAfterSkill is true, so rule engine should activate
+    expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(true);
   });
 
-  it("transitions from skill_active to guarded on agent_settled", () => {
-    const g = createStateMachine();
+  it("does not activate rule engine on agent_settled when autoActivateAfterSkill is false", () => {
+    const g = createStateMachine({ autoActivateAfterSkill: false });
     g.handleInput("/skill:to-spec");
     expect(g.getState()).toBe("skill_active");
+
     g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
-    expect(g.isBlocking()).toBe(true);
+    // autoActivateAfterSkill is false, so rule engine should NOT activate
+    expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
   it("does nothing on agent_settled from normal state", () => {
     const g = createStateMachine();
     g.handleAgentSettled();
     expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
-  it("does nothing on agent_settled from guarded state", () => {
-    const g = createStateMachine();
+  it("stays on skill_active after handleAgentSettled when autoActivateAfterSkill is false", () => {
+    // With autoActivateAfterSkill: false, handleAgentSettled does nothing (stays skill_active)
+    const g = createStateMachine({ autoActivateAfterSkill: false });
     g.handleInput("/skill:to-spec");
-    g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
-    g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
-  });
-
-  it("transitions from guarded to skill_active on another target skill", () => {
-    const g = createStateMachine();
-    g.handleInput("/skill:to-spec");
-    g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
-    g.handleInput("/skill:grill-me");
     expect(g.getState()).toBe("skill_active");
+
+    g.handleAgentSettled();
+    // agent_settled with autoActivateAfterSkill: false — goes to normal, no rule engine
+    expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
-  it("handleAllow transitions to normal from any state", () => {
+  it("handleAllow transitions to normal and deactivates rule engine", () => {
     const g = createStateMachine();
     g.handleInput("/skill:to-spec");
     g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
+
     g.handleAllow();
     expect(g.getState()).toBe("normal");
-    expect(g.isBlocking()).toBe(false);
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
-  it("reset returns to normal and stops blocking", () => {
+  it("handleAllow from normal state does nothing", () => {
+    const g = createStateMachine();
+    g.handleAllow();
+    expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
+  });
+
+  it("reset returns to normal and deactivates rule engine", () => {
     const g = createStateMachine();
     g.handleInput("/skill:to-spec");
     g.handleAgentSettled();
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
+
     g.reset();
     expect(g.getState()).toBe("normal");
-    expect(g.isBlocking()).toBe(false);
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
-  it("isBlocking returns true in skill_active state (BUG: currently false)", () => {
+  it("transitions from rule engine active to skill_active on another target skill", () => {
     const g = createStateMachine();
-    expect(g.isBlocking()).toBe(false); // normal
-    g.handleInput("/skill:grill-with-docs");
+    g.handleInput("/skill:to-spec");
+    g.handleAgentSettled();
+    expect(g.isRuleEngineActive()).toBe(true);
+
+    g.handleInput("/skill:grill-me");
     expect(g.getState()).toBe("skill_active");
-    // BUG: isBlocking() should be true in skill_active —
-    // otherwise the model writes code in the same turn as skill invocation.
-    expect(g.isBlocking()).toBe(true);
+    // Rule engine should be deactivated when entering skill_active
+    expect(g.isRuleEngineActive()).toBe(false);
+  });
+
+  it("activateRuleEngine / deactivateRuleEngine work independently of state", () => {
+    const g = createStateMachine();
+    expect(g.isRuleEngineActive()).toBe(false);
+
+    g.activateRuleEngine();
+    expect(g.isRuleEngineActive()).toBe(true);
+
+    g.deactivateRuleEngine();
+    expect(g.isRuleEngineActive()).toBe(false);
+  });
+
+  it("multiple activations don't change state", () => {
+    const g = createStateMachine();
+    g.activateRuleEngine();
+    g.activateRuleEngine();
+    expect(g.isRuleEngineActive()).toBe(true);
+
+    g.deactivateRuleEngine();
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
   // ── Session history rebuild ─────────────────────────────────────────────
 
-  it("rebuildFromHistory sets guarded when user entry contains target skill", () => {
+  it("rebuildFromHistory sets rule engine active when user entry contains target skill", () => {
     const g = createStateMachine();
     const entries = [
       { role: "user" as const, content: "/skill:to-spec" },
     ];
     g.rebuildFromHistory(entries);
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
+    expect(g.getState()).toBe("normal");
   });
 
   it("rebuildFromHistory stays normal when no target skill found", () => {
@@ -201,6 +239,7 @@ Run a /grilling session.
     ];
     g.rebuildFromHistory(entries);
     expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
   it("rebuildFromHistory ignores assistant entries", () => {
@@ -210,6 +249,7 @@ Run a /grilling session.
     ];
     g.rebuildFromHistory(entries);
     expect(g.getState()).toBe("normal");
+    expect(g.isRuleEngineActive()).toBe(false);
   });
 
   it("rebuildFromHistory parses content array parts", () => {
@@ -221,7 +261,7 @@ Run a /grilling session.
       },
     ];
     g.rebuildFromHistory(entries);
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
   });
 
   it("rebuildFromHistory handles SessionMessageEntry shape", () => {
@@ -239,7 +279,7 @@ Run a /grilling session.
       },
     ];
     g.rebuildFromHistory(entries);
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
   });
 
   it("rebuildFromHistory handles SessionMessageEntry with content array", () => {
@@ -257,7 +297,7 @@ Run a /grilling session.
       },
     ];
     g.rebuildFromHistory(entries);
-    expect(g.getState()).toBe("guarded");
+    expect(g.isRuleEngineActive()).toBe(true);
   });
 
   // ── Custom target skills ────────────────────────────────────────────────
@@ -278,121 +318,5 @@ Run a /grilling session.
       "wayfinder",
       "grilling",
     ]);
-  });
-});
-
-// ── Slice 2: path allowlist ──────────────────────────────────────────
-
-describe("DEFAULT_ALLOW_WRITE_PATHS", () => {
-  it("contains .scratch/, docs/, and CONTEXT.md", () => {
-    expect(DEFAULT_ALLOW_WRITE_PATHS).toEqual([
-      ".scratch/",
-      "docs/",
-      "CONTEXT.md",
-    ]);
-  });
-});
-
-describe("isPathAllowed", () => {
-  it("allows paths under .scratch/ directory prefix", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed(".scratch/test.txt")).toBe(true);
-    expect(g.isPathAllowed(".scratch/sub/dir/file.ts")).toBe(true);
-  });
-
-  it("allows paths under docs/ directory prefix", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("docs/guide.md")).toBe(true);
-    expect(g.isPathAllowed("docs/api/README.md")).toBe(true);
-  });
-
-  it("allows CONTEXT.md exact match", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("CONTEXT.md")).toBe(true);
-  });
-
-  it("rejects paths outside allowlist", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("src/index.ts")).toBe(false);
-    expect(g.isPathAllowed("package.json")).toBe(false);
-    expect(g.isPathAllowed("lib/utils.ts")).toBe(false);
-  });
-
-  it("normalizes ./ prefix before matching", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("./.scratch/test.txt")).toBe(true);
-    expect(g.isPathAllowed("./docs/guide.md")).toBe(true);
-    expect(g.isPathAllowed("./CONTEXT.md")).toBe(true);
-    expect(g.isPathAllowed("./src/index.ts")).toBe(false);
-  });
-
-  it("does not partially match file names", () => {
-    const g = createStateMachine();
-    // CONTEXT.md should match exactly, not .md files
-    expect(g.isPathAllowed("README.md")).toBe(false);
-    expect(g.isPathAllowed("docs.md")).toBe(false);
-  });
-
-  it("does not partially match directory prefixes", () => {
-    const g = createStateMachine();
-    // .scratch-other/ should not match .scratch/
-    expect(g.isPathAllowed(".scratch-other/file.ts")).toBe(false);
-    expect(g.isPathAllowed("documentation/guide.md")).toBe(false);
-  });
-
-  it("expands ~ to home directory for CONTEXT.md matching", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("~/Project/CONTEXT.md")).toBe(true);
-    expect(g.isPathAllowed("~/Project/Pi/ri/CONTEXT.md")).toBe(true);
-  });
-
-  it("allows CONTEXT.md via suffix match for cross-project paths", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("ri/CONTEXT.md")).toBe(true);
-    expect(g.isPathAllowed("./ri/CONTEXT.md")).toBe(true);
-    expect(g.isPathAllowed("src/utils/CONTEXT.md")).toBe(true);
-  });
-
-  it("still rejects CONTEXT.md.bak and similar variants", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("CONTEXT.md.bak")).toBe(false);
-    expect(g.isPathAllowed("CONTEXT.md.tmp")).toBe(false);
-    expect(g.isPathAllowed("backup-CONTEXT.md")).toBe(false);
-  });
-
-  it("expands ~ to home directory for docs/ paths", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("~/Project/docs/guide.md")).toBe(true);
-    expect(g.isPathAllowed("~/Project/Pi/ri/docs/1.md")).toBe(true);
-    expect(g.isPathAllowed("~/Project/Pi/ri/docs/adr/2.md")).toBe(true);
-  });
-
-  it("expands ~ to home directory for .scratch/ paths", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("~/Project/.scratch/notes.txt")).toBe(true);
-    expect(g.isPathAllowed("~/Project/Pi/ri/.scratch/3.md")).toBe(true);
-  });
-
-  it("allows absolute paths containing docs/ via subpath match", () => {
-    const g = createStateMachine();
-    expect(g.isPathAllowed("/home/user/project/docs/guide.md")).toBe(true);
-    expect(g.isPathAllowed("/home/user/project/.scratch/tmp.txt")).toBe(true);
-    expect(g.isPathAllowed("/home/user/project/docs/sub/file.md")).toBe(true);
-  });
-
-  it("does not false-match subpath on similar directory names", () => {
-    const g = createStateMachine();
-    // directory prefix "docs/" should not match "documentation/" or "custom-docs/"
-    expect(g.isPathAllowed("documentation/guide.md")).toBe(false);
-    expect(g.isPathAllowed("/home/user/custom-docs/file.md")).toBe(false);
-    expect(g.isPathAllowed("/home/user/scratchwork/tmp.txt")).toBe(false);
-  });
-
-  it("accepts custom allowWritePaths in options", () => {
-    const g = createStateMachine({ allowWritePaths: ["custom/", "special.txt"] });
-    expect(g.isPathAllowed("custom/file.ts")).toBe(true);
-    expect(g.isPathAllowed("special.txt")).toBe(true);
-    expect(g.isPathAllowed(".scratch/test.txt")).toBe(false);
-    expect(g.isPathAllowed("docs/guide.md")).toBe(false);
   });
 });
