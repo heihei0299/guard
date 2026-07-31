@@ -66,30 +66,10 @@ describe("normalizePlanModeSettings", () => {
     expect(result!.allowedPlanSubagents).toEqual(["research"]);
   });
 
-  it("accepts safeSubcommands with git and gh", () => {
-    const result = normalizePlanModeSettings({
-      safeSubcommands: {
-        git: ["status", "log"],
-        gh: ["pr", "issue"],
-      },
-    });
-    expect(result).toBeDefined();
-    expect(result!.safeSubcommands?.git).toEqual(["status", "log"]);
-    expect(result!.safeSubcommands?.gh).toEqual(["pr", "issue"]);
-  });
-
-  it("returns undefined for safeSubcommands with unknown keys", () => {
+  it("returns undefined when config contains the removed safeSubcommands key", () => {
     expect(
       normalizePlanModeSettings({
-        safeSubcommands: { npm: ["install"] },
-      }),
-    ).toBeUndefined();
-  });
-
-  it("returns undefined for invalid git subcommand values", () => {
-    expect(
-      normalizePlanModeSettings({
-        safeSubcommands: { git: ["unknown-cmd"] },
+        safeSubcommands: { git: ["status", "log"], gh: ["pr", "issue"] },
       }),
     ).toBeUndefined();
   });
@@ -142,6 +122,17 @@ describe("readPlanModeSettings", () => {
     await fs.writeFile(
       testSettingsPath,
       JSON.stringify({ thinkingLevel: "super-max" }),
+      "utf-8",
+    );
+    const result = await readPlanModeSettings(testSettingsPath);
+    expect(result.kind).toBe("invalid");
+  });
+
+  it("returns invalid for settings file containing the removed safeSubcommands key", async () => {
+    const fs = await import("fs/promises");
+    await fs.writeFile(
+      testSettingsPath,
+      JSON.stringify({ thinkingLevel: "medium", safeSubcommands: { git: ["status"] } }),
       "utf-8",
     );
     const result = await readPlanModeSettings(testSettingsPath);

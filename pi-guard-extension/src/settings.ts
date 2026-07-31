@@ -25,40 +25,10 @@ export const PLAN_MODE_THINKING_LEVELS = [
 export type PlanModeThinkingLevel = (typeof PLAN_MODE_THINKING_LEVELS)[number];
 export type PlanModeFixedThinkingLevel = Exclude<PlanModeThinkingLevel, "inherit">;
 
-export const SAFE_GIT_SUBCOMMANDS = [
-  "log",
-  "status",
-  "diff",
-  "show",
-  "branch",
-  "tag",
-  "describe",
-  "rev-parse",
-  "ls-files",
-  "stash",
-] as const;
-
-export const SAFE_GH_SUBCOMMAND_PATHS = [
-  "pr",
-  "issue",
-  "search",
-  "repo",
-  "auth",
-] as const;
-
-export type SafeGitSubcommand = (typeof SAFE_GIT_SUBCOMMANDS)[number];
-export type SafeGhSubcommandPath = (typeof SAFE_GH_SUBCOMMAND_PATHS)[number];
-
-export interface SafeSubcommands {
-  git?: SafeGitSubcommand[];
-  gh?: SafeGhSubcommandPath[];
-}
-
 export interface PlanModeSettings {
   thinkingLevel: PlanModeThinkingLevel;
   defaultPlanTools?: string[];
   allowedPlanSubagents?: string[];
-  safeSubcommands?: SafeSubcommands;
 }
 
 export type PlanModeSettingsLoadResult =
@@ -97,10 +67,10 @@ export function normalizePlanModeSettings(value: unknown): PlanModeSettings | un
     settings.allowedPlanSubagents = allowedPlanSubagents;
   }
 
+  // The safeSubcommands key was parsed but never enforced; configs that still
+  // contain it are rejected as invalid instead of silently ignored.
   if (Object.hasOwn(value, "safeSubcommands")) {
-    const safeSubcommands = normalizeSafeSubcommands(Reflect.get(value, "safeSubcommands"));
-    if (!safeSubcommands) return undefined;
-    settings.safeSubcommands = safeSubcommands;
+    return undefined;
   }
 
   return settings;
@@ -153,42 +123,6 @@ function normalizeStringArray(value: unknown): string[] | undefined {
   if (
     !Array.isArray(value) ||
     !value.every((item): item is string => typeof item === "string" && item.trim().length > 0)
-  ) {
-    return undefined;
-  }
-  return Array.from(new Set(value));
-}
-
-function normalizeSafeSubcommands(value: unknown): SafeSubcommands | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-
-  const allowedKeys = new Set(["git", "gh"]);
-  if (Object.keys(value).some((key) => !allowedKeys.has(key))) return undefined;
-
-  const safeSubcommands: SafeSubcommands = {};
-
-  if (Object.hasOwn(value, "git")) {
-    const git = normalizeKnownValues(Reflect.get(value, "git"), SAFE_GIT_SUBCOMMANDS as unknown as readonly string[]);
-    if (!git) return undefined;
-    safeSubcommands.git = git as SafeGitSubcommand[];
-  }
-
-  if (Object.hasOwn(value, "gh")) {
-    const gh = normalizeKnownValues(Reflect.get(value, "gh"), SAFE_GH_SUBCOMMAND_PATHS as unknown as readonly string[]);
-    if (!gh) return undefined;
-    safeSubcommands.gh = gh as SafeGhSubcommandPath[];
-  }
-
-  return safeSubcommands;
-}
-
-function normalizeKnownValues(
-  value: unknown,
-  supported: readonly string[],
-): string[] | undefined {
-  if (
-    !Array.isArray(value) ||
-    !value.every((item): item is string => typeof item === "string" && supported.includes(item))
   ) {
     return undefined;
   }

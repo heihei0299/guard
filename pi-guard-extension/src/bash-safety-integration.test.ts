@@ -5,9 +5,9 @@ import { createMockPi, createMockContext, builtinTool } from "./test-support.ts"
 /**
  * Bash safety integration tests for the DEFAULT structured-command policy.
  *
- * Note: the `safeSubcommands` settings option is normalized but deliberately
- * not enforced yet (recorded as a forward-looking API in Ticket 02 review);
- * these tests cover the built-in safe prefixes only.
+ * These tests cover the built-in safe prefixes only; the former
+ * `safeSubcommands` settings option (a parsed-but-unenforced dead key) was
+ * removed in ticket 03 and is no longer part of the config surface.
  */
 describe("bash safety integration", () => {
   it("enforces structured command safety only while Guard mode is active", async () => {

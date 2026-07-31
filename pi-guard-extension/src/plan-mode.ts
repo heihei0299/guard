@@ -334,7 +334,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
       if (event.toolName !== "bash") return;
 
       const command = typeof event.input.command === "string" ? event.input.command : "";
-      if (!isSafeCommand(command, settings.safeSubcommands)) {
+      if (!isSafeCommand(command)) {
         return {
           block: true,
           reason: `Guard mode blocks mutating or non-allowlisted bash commands.\nCommand: ${command}`,

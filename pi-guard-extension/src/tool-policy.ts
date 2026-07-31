@@ -208,11 +208,6 @@ export function classifyPlanModeTool(tool: ToolInfo): PlanModeToolPolicy {
 
 // ── Bash Safety Policy ────────────────────────────────────────────────────
 
-export interface SafeSubcommands {
-  git?: string[];
-  gh?: string[];
-}
-
 /**
  * Check if a bash command is safe to execute in Plan Mode.
  *
@@ -222,7 +217,7 @@ export interface SafeSubcommands {
  * 3. Allows structured commands (git, npm, npx, etc.) with subcommand safety
  * 4. Default: unsafe (conservative)
  */
-export function isSafeCommand(command: string, _safeSubcommands?: SafeSubcommands): boolean {
+export function isSafeCommand(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed) return true;
 
