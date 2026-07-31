@@ -352,25 +352,59 @@ function isSafeSegment(segment: string): boolean {
   // Check for dangerous redirects (> or >>)
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
+    // A &-target is only a legit file-descriptor duplicate when it is a bare
+    // number (&1, &2, ...); anything else (>&/tmp/x, >&2file) opens a file.
+    const isFdDupTarget = (target: string) => /^&\d+$/.test(target);
     if (t === ">" || t === ">>") {
       if (i + 1 >= tokens.length) return false;
       const target = tokens[i + 1];
-      if (target === "/dev/null" || target.startsWith("&")) continue;
+      if (target === "/dev/null" || isFdDupTarget(target)) continue;
       return false;
     }
     // Numbered redirect: N> or N>>
     if (/^\d+>$/.test(t) || /^\d+>>$/.test(t)) {
       if (i + 1 >= tokens.length) return false;
       const target = tokens[i + 1];
-      if (target === "/dev/null" || target.startsWith("&")) continue;
+      if (target === "/dev/null" || isFdDupTarget(target)) continue;
+      return false;
+    }
+    // Exact &> / &>> operator token: target is always a file name;
+    // only /dev/null passes (echo hi &> /dev/null).
+    if (t === "&>" || t === "&>>") {
+      if (i + 1 >= tokens.length) return false;
+      const target = tokens[i + 1];
+      if (target === "/dev/null") continue;
       return false;
     }
     // Combined redirect+target: N>/dev/null, 2>&1, &>file
     const match = t.match(/^(\d+|&)(>|>>)(.+)$/);
     if (match) {
       const target = match[3];
-      if (target !== "/dev/null" && !target.startsWith("&")) return false;
+      // The &> operator always treats its target as a file name; only the
+      // numbered form (N>word) can be a file-descriptor duplicate (&N).
+      if (match[1] === "&") {
+        if (target !== "/dev/null") return false;
+      } else if (target !== "/dev/null" && !isFdDupTarget(target)) {
+        return false;
+      }
     }
+    // Glued output redirect: > or >> inside a token, e.g. echo hi>/tmp/x,
+    // echo hi2>/tmp/x, cmd >>log, or a fused redirect+target token like
+    // >/tmp/x. Quoted > is not a redirect, so quoted sections are ignored.
+    // Targets /dev/null and &N (e.g. echo hi>/dev/null, echo hi>&1) stay allowed.
+    // (Numbered/& forms like 2>file and &>file are governed by the rule above
+    // only when the token starts with a digit or &.)
+    const unquoted = t.replace(/"[^"]*"|'[^']*'/g, "");
+    const glued = unquoted.match(/^(.*[^&])?(>+)(.*)$/);
+    if (glued) {
+      const target = glued[3];
+      if (target !== "/dev/null" && !isFdDupTarget(target)) return false;
+    }
+    // Glued &> redirect: bash lexes "hi&>" as "hi" + the stdout+stderr
+    // redirect operator even without whitespace (echo hi&>/tmp/x writes a
+    // file). Only /dev/null targets stay allowed.
+    const ampGlued = unquoted.match(/^(.*)&>(.*)$/);
+    if (ampGlued && ampGlued[2] !== "/dev/null") return false;
   }
 
   // Known readonly commands

@@ -120,7 +120,7 @@ While Guard Mode is active, built-in tools are classified as:
 `bash` commands are classified read-only (allowed) or write (blocked):
 
 - **Always allowed**: `cat`, `head`, `tail`, `ls`, `wc`, `grep`, `rg`, `find`, `file`, `stat`, `du`, `df`, `which`, `echo`, `printf`, `ps`, `top`, `date`, `ping`, `curl` (can write files via `-o`/`-O` — currently allowed), `mkdir`, `jq`, `diff`, `pwd`, … plus test/check commands (`npm test`, `npx tsc --noEmit`, `go test`, `vitest`, …) and `git` / `gh` subcommands matching the safe prefixes (`git log`, `git status`, `git diff`, `git show`, `git branch`, `git tag`, …; `gh pr view`, `gh issue list`, `gh search`, …).
-- **Always blocked**: `rm`, `mv`, `cp`, `touch`, `sed -i`, `awk -i`, `tee`, `dd`, `chmod`, `chown`, `mount`, `mkfs`, … and commands whose standalone tokens include a `>` / `>>` redirect to a file (e.g. `echo hi > /tmp/x`). Redirects glued to a non-numeric token (e.g. `echo hi>/tmp/x`) are not detected by the current policy; `<` input redirects and numeric / `&` forms (`2>file`, `&>file`) are detected. (`sed`/`awk` without `-i` are allowed as read-only.)
+- **Always blocked**: `rm`, `mv`, `cp`, `touch`, `sed -i`, `awk -i`, `tee`, `dd`, `chmod`, `chown`, `mount`, `mkfs`, … and commands whose standalone tokens include a `>` / `>>` redirect to a file (e.g. `echo hi > /tmp/x`). Redirects glued to a non-numeric token (e.g. `echo hi>/tmp/x`, `cmd>>log`) are also detected; `<` input redirects and numeric / `&` forms (`2>file`, `&>file`) are detected as well. Redirects to `/dev/null` or file descriptors (e.g. `2>&1`) remain allowed. (`sed`/`awk` without `-i` are allowed as read-only.)
 - **Unknown commands** are conservatively blocked.
 
 ## Configuration

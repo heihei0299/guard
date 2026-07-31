@@ -123,6 +123,90 @@ describe("isSafeCommand", () => {
     expect(isSafeCommand("echo hello > out.txt")).toBe(false);
   });
 
+  it("blocks standalone-token redirect: echo hi > out.txt", () => {
+    expect(isSafeCommand("echo hi > out.txt")).toBe(false);
+  });
+
+  it("blocks numeric redirect: 2>file", () => {
+    expect(isSafeCommand("echo 2>file")).toBe(false);
+  });
+
+  it("blocks numeric append redirect: 2>>file", () => {
+    expect(isSafeCommand("echo 2>>file")).toBe(false);
+  });
+
+  it("blocks & redirect: &>file", () => {
+    expect(isSafeCommand("echo &>file")).toBe(false);
+  });
+
+  it("blocks glued output redirect: echo hi>/tmp/x", () => {
+    expect(isSafeCommand("echo hi>/tmp/x")).toBe(false);
+  });
+
+  it("blocks glued redirect after digit: echo hi2>/tmp/x", () => {
+    expect(isSafeCommand("echo hi2>/tmp/x")).toBe(false);
+  });
+
+  it("blocks fused redirect+target token: echo hi >/tmp/x", () => {
+    expect(isSafeCommand("echo hi >/tmp/x")).toBe(false);
+  });
+
+  it("blocks glued &> redirect: echo hi&>/tmp/x", () => {
+    expect(isSafeCommand("echo hi&>/tmp/x")).toBe(false);
+  });
+
+  it("blocks glued &>> redirect: echo hi&>>log", () => {
+    expect(isSafeCommand("echo hi&>>log")).toBe(false);
+  });
+
+  it("allows glued &> redirect to /dev/null: echo hi&>/dev/null", () => {
+    expect(isSafeCommand("echo hi&>/dev/null")).toBe(true);
+  });
+
+  it("allows spaced &> redirect to /dev/null: echo hi &> /dev/null", () => {
+    expect(isSafeCommand("echo hi &> /dev/null")).toBe(true);
+  });
+
+  it("allows spaced &>> redirect to /dev/null: echo hi &>> /dev/null", () => {
+    expect(isSafeCommand("echo hi &>> /dev/null")).toBe(true);
+  });
+
+  it("blocks spaced &> redirect to a file: echo hi &> out.txt", () => {
+    expect(isSafeCommand("echo hi &> out.txt")).toBe(false);
+  });
+
+  it("blocks glued append redirect: echo hi>>/tmp/x", () => {
+    expect(isSafeCommand("echo hi>>/tmp/x")).toBe(false);
+  });
+
+  it("allows > inside a quoted string: echo \"a>b\"", () => {
+    expect(isSafeCommand('echo "a>b"')).toBe(true);
+  });
+
+  it("allows glued redirect to /dev/null: echo hi>/dev/null", () => {
+    expect(isSafeCommand("echo hi>/dev/null")).toBe(true);
+  });
+
+  it("allows glued redirect to fd: echo hi>&1", () => {
+    expect(isSafeCommand("echo hi>&1")).toBe(true);
+  });
+
+  it("blocks glued fd-dup to a file path: echo hi>&/tmp/x", () => {
+    expect(isSafeCommand("echo hi>&/tmp/x")).toBe(false);
+  });
+
+  it("blocks numbered fd-dup to a file path: ls 2>&/tmp/x", () => {
+    expect(isSafeCommand("ls 2>&/tmp/x")).toBe(false);
+  });
+
+  it("blocks &> with &-prefixed filename: echo hi&>&1", () => {
+    expect(isSafeCommand("echo hi&>&1")).toBe(false);
+  });
+
+  it("allows /dev/null redirect as single token: ls >/dev/null", () => {
+    expect(isSafeCommand("ls >/dev/null")).toBe(true);
+  });
+
   it("allows redirect to /dev/null", () => {
     expect(isSafeCommand("ls 2>/dev/null")).toBe(true);
   });
@@ -238,6 +322,14 @@ describe("isSafeCommand", () => {
 
   it("blocks command with < input redirect", () => {
     expect(isSafeCommand("sort < input.txt")).toBe(false);
+  });
+
+  it("blocks glued input redirect: cat<file", () => {
+    expect(isSafeCommand("cat<file")).toBe(false);
+  });
+
+  it("blocks heredoc input redirect: cat <<EOF", () => {
+    expect(isSafeCommand("cat <<EOF")).toBe(false);
   });
 
 
