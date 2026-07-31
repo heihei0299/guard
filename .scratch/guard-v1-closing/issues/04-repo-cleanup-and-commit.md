@@ -4,7 +4,11 @@
 
 **Blocked by:** 01 — 无空格重定向漏检修复、02 — 补过滤 guard_mode_question 的 Q&A、03 — 移除 safeSubcommands 死键
 
-**Status:** ready-for-agent
+**Status:** resolved
+
+## Answer
+
+已实现并提交：`16e64b5`（37 文件，+2094/-25）。删除 `.pi/pi-guard.json` 与 `_review_diff.txt`；`对话分析总结.md` 移入 `.scratch/` 并加存档说明（rename 88%）；ADR 0006-0010、AGENTS.md、docs/agents/、`.scratch/guard-plan-mode/`、`.scratch/guard-v1-closing/`、历史 spec 目录、CONTEXT.md 更新、tdd-implement skill 全部入库；ADR-0010 旧 `isSafeCommand` 签名片段刷新。剩余 untracked 仅 `.codegraph/`、`.reasonix/`、`opencode.jsonc`、`pi-extensions/`（嵌套仓库，预期）。三处代码修复已在 01-03 各自提交中。
 
 - [ ] 旧架构死配置文件与临时审查产物被删除
 - [ ] 旧版 bug 分析文档移入 `.scratch/` 存档并注明已被取代

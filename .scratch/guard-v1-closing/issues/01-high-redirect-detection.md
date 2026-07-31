@@ -4,7 +4,11 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
+
+## Answer
+
+已实现并提交：`8bdf2b1`（4 文件，+131/-5）。检测覆盖：粘连 `>`/`>>`（含数字前导 `hi2>`）、粘连 `&>`、精确 `&>`/`&>>` token、fd-dup 仅 `&\d+` 放行（`2>&/tmp/x`、`hi>&/tmp/x` 拦截）；`/dev/null` 与 `2>&1` 例外保持；README 措辞同步。28 个新测试（含 3 轮 review 迭代补的绕过形态：`hi2>/tmp/x`、`>/tmp/x`、`hi&>/tmp/x`、`&> /dev/null` 误杀修复）。最终 375 tests 全绿、tsc 零错误。
 
 - [ ] `echo hi>/tmp/x`、`echo hi>>/tmp/x` 被判定为不安全并拦截
 - [ ] 独立 token 形式（`echo hi > out.txt`）、数字形式（`2>file`、`2>>file`）、`&` 形式（`&>file`）仍被拦截（不回归）

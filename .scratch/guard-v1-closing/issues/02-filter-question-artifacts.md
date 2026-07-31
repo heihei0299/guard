@@ -4,7 +4,11 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
+
+## Answer
+
+已实现并提交：`d99a437`（4 文件，+120/-3）。`stripPlanModeQuestionCallsFromMessage`（与 complete 过滤共享 `stripToolCallsFromMessage`）、`messageContainsInactivePlanModeArtifact` 扩展覆盖 question 工具结果、context 管道接线；激活时 Q&A 保持可见；单测 + 集成断言（index.test.ts）。最终 375 tests 全绿、tsc 零错误。
 
 - [ ] Guard Mode 关闭时，`guard_mode_question` 的工具结果消息被过滤
 - [ ] Guard Mode 关闭时，assistant 内容中的 `guard_mode_question` 工具调用块被剥离

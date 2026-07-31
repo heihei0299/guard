@@ -4,7 +4,11 @@
 
 **Blocked by:** 01 — 无空格重定向漏检修复（两票改动同一安全检查模块，串行化避免并行编辑冲突）
 
-**Status:** ready-for-agent
+**Status:** resolved
+
+## Answer
+
+已实现并提交：`01339a6`（5 文件，+21/-101）。`safeSubcommands` 字段/类型/`normalizeSafeSubcommands`/`SAFE_GIT_SUBCOMMANDS`/`SAFE_GH_SUBCOMMAND_PATHS` 全部移除；含该键的配置判定为 invalid（settings.ts 拒绝分支 + 2 新测试）；`isSafeCommand` 签名去参、调用点更新；`safe-subcommands.test.ts` 更名为 `bash-safety-integration.test.ts`（2 个真实集成测试保留）。review ship-as-is。最终 375 tests 全绿、tsc 零错误。
 
 - [ ] 配置文件中含 `safeSubcommands` 键时被判定为无效并警告（按既有配置归一化行为）
 - [ ] 安全检查函数的公开签名不再携带该参数
