@@ -762,7 +762,21 @@ export function createGuard(options: GuardExtensionOptions = {}) {
             if (!tool || !canSelectToolInPlanMode(tool)) return { kind: "rejected" };
             const names = resolvePlanModeSelectedNames(tools);
             if (selected) names.add(tool.name);
-            else names.delete(tool.name);
+            else {
+              names.delete(tool.name);
+              // 用户显式取消 allowlisted 工具（如 write）：同时从宿主活动集
+              // 移除，否则 applyPlanModeTools 的合并逻辑会把它重新注入，
+              // 导致宿主激活的 write 永远无法被取消。
+              // 条件与 isAllowlistedToolName 对齐：仅内置 allowlisted 工具。
+              if (
+                ALLOWLISTED_BUILTIN_TOOLS.has(tool.name) &&
+                isBuiltinTool(tool)
+              ) {
+                pi.setActiveTools(
+                  safeGetActiveTools().filter((name) => name !== tool.name),
+                );
+              }
+            }
             state = {
               ...state,
               selectedToolNames: filterAvailableSelectedNames(Array.from(names), tools),
@@ -821,7 +835,10 @@ export function createGuard(options: GuardExtensionOptions = {}) {
     function isAllowlistedToolName(name: string) {
       if (!ALLOWLISTED_BUILTIN_TOOLS.has(name)) return false;
       const tool = toolByName(name);
-      return tool !== undefined ? canSelectToolInPlanMode(tool) : false;
+      // Only built-in allowlisted tools (write/replace) are merged in: a
+      // user/extension tool that happens to share the name is user-opt-in
+      // and must not bypass the opt-in gate via the host-active merge.
+      return tool !== undefined && isBuiltinTool(tool) && canSelectToolInPlanMode(tool);
     }
 
     function planModeToolNames() {

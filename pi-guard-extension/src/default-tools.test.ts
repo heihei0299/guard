@@ -224,6 +224,71 @@ describe("host-added tool visibility", () => {
 
     expect(mock.rawPi.getActiveTools()).toContain("write");
   });
+
+  it("lets the user toggle off a host-activated write tool", async () => {
+    const mock = createMockPi({
+      activeTools: ["read", "bash"],
+      allTools: [
+        builtinTool("read"),
+        builtinTool("bash"),
+        builtinTool("write"),
+        builtinTool("grep"),
+        builtinTool("find"),
+        builtinTool("ls"),
+      ],
+    });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      custom: async (factory: unknown) => {
+        const harness = createCustomSelectorHarness(factory, 60);
+        for (const ch of ["w", "r", "i", "t", "e"]) harness.handleInput(ch);
+        harness.handleInput("tui.select.confirm"); // toggle on
+        harness.handleInput("tui.select.confirm"); // toggle off
+        harness.handleInput("tui.select.cancel"); // 关闭菜单
+        await harness.waitForPending();
+        return harness.result;
+      },
+    });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+
+    // 宿主在 Guard 模式内激活 write
+    mock.rawPi.setActiveTools(["read", "bash", "write", ...REQUIRED_PLAN_TOOLS]);
+    expect(mock.rawPi.getActiveTools()).toContain("write");
+
+    // 用户在 /guard tools 里先勾选再取消 write
+    await mock.commands.get("guard")?.handler("tools", context.ctx);
+    expect(mock.rawPi.getActiveTools()).not.toContain("write");
+  });
+
+  it("does not merge a user tool that shares the name write", async () => {
+    const mock = createMockPi({
+      activeTools: ["read", "bash"],
+      allTools: [
+        builtinTool("read"),
+        builtinTool("bash"),
+        extensionTool("write"),
+        builtinTool("grep"),
+        builtinTool("find"),
+        builtinTool("ls"),
+      ],
+    });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+
+    // 宿主在 Guard 模式内激活名为 write 的用户工具（user-opt-in），
+    // 合并逻辑因非 builtin 不应注入。
+    mock.rawPi.setActiveTools(["read", "bash", "write", ...REQUIRED_PLAN_TOOLS]);
+    await mock.events.get("before_agent_start")?.[0]?.(
+      { systemPrompt: "base", prompt: "continue", systemPromptOptions: {} },
+      context.ctx,
+    );
+
+    expect(mock.rawPi.getActiveTools()).not.toContain("write");
+  });
 });
 
 describe("restored tool selections", () => {
