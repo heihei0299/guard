@@ -7,7 +7,7 @@ A [pi](https://pi.dev) extension that implements **Guard Mode** — a structured
 This project contains a pi extension (`pi-guard-extension/`) that replaces the old three-state guard with Guard Mode (a.k.a. plan mode):
 
 - Guard Mode activation via the `/guard` command or the `--guard` startup flag
-- Two workflow tools: `plan_mode_question` (ask clarification questions) and `plan_mode_complete` (submit a plan)
+- Two workflow tools: `guard_mode_question` (ask clarification questions) and `guard_mode_complete` (submit a plan)
 - Write operations (`write`/`replace`) are **only** allowed on allowlisted paths (`.scratch/`, `docs/`, `CONTEXT.md`) while planning
 - `bash` is restricted to read-only / safe commands while planning
 - `edit` and `update_plan` are always blocked while planning
@@ -35,8 +35,8 @@ pi-guard/
 │       ├── command.ts               # /guard argument completions
 │       ├── message-transform.ts     # Context filtering in Guard Mode
 │       ├── presentation.ts          # TUI status rendering
-│       ├── question-tool.ts         # plan_mode_question implementation
-│       ├── completion-tool.ts       # plan_mode_complete implementation
+│       ├── question-tool.ts         # guard_mode_question implementation
+│       ├── completion-tool.ts       # guard_mode_complete implementation
 │       ├── subagent-policy.ts       # Subagent allowlist enforcement
 │       ├── active-implementation-menu.ts
 │       ├── required-tools.ts        # Tool visibility during planning
@@ -69,7 +69,7 @@ Guard Mode is a **planning workflow**, not a state machine of skill triggers:
 
 1. Enter Guard Mode with `/guard` (or start pi with `--guard`).
 2. The agent explores read-only: `read`, `grep`, `find`, `ls` pass; `write`/`replace` are limited to allowlisted paths; `bash` is limited to safe commands; `edit`/`update_plan` are blocked.
-3. The agent asks questions with `plan_mode_question` and submits a plan with `plan_mode_complete`.
+3. The agent asks questions with `guard_mode_question` and submits a plan with `guard_mode_complete`.
 4. You decide: `/guard implement` accepts the plan (full tool access is restored for implementation), or `/guard exit` discards the plan. Continue planning with a new `/guard <prompt>`.
 5. The plan and Guard Mode state are persisted and restored on `/resume`.
 
@@ -90,8 +90,8 @@ The old `/guard-start` and `/guard:allow` commands are removed; use `/guard` and
 
 ### Tools
 
-- **`plan_mode_question`** — Ask the user 1–3 clarification questions with meaningful options while Guard Mode is active.
-- **`plan_mode_complete`** — Submit a plan for user review. Only available while Guard Mode is active.
+- **`guard_mode_question`** — Ask the user 1–3 clarification questions with meaningful options while Guard Mode is active.
+- **`guard_mode_complete`** — Submit a plan for user review. Only available while Guard Mode is active.
 
 ## Tool Policy
 

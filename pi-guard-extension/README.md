@@ -4,7 +4,7 @@ A [pi](https://pi.dev) extension that implements **Guard Mode** — a structured
 
 ## Problem
 
-When an AI assistant plans a large piece of work, it may start modifying files before the plan is agreed. Guard Mode makes that impossible: write operations are limited to an allowlist, `bash` is restricted to safe commands, and the agent must submit a plan via `plan_mode_complete` before you decide to implement.
+When an AI assistant plans a large piece of work, it may start modifying files before the plan is agreed. Guard Mode makes that impossible: write operations are limited to an allowlist, `bash` is restricted to safe commands, and the agent must submit a plan via `guard_mode_complete` before you decide to implement.
 
 ## How It Works
 
@@ -12,7 +12,7 @@ Guard Mode is a planning workflow:
 
 1. Enter Guard Mode with `/guard` (or start pi with `--guard`).
 2. The agent explores read-only (`read`, `grep`, `find`, `ls`), may write only to allowlisted paths, and may run only safe `bash` commands.
-3. The agent asks questions with `plan_mode_question` and submits a plan with `plan_mode_complete`.
+3. The agent asks questions with `guard_mode_question` and submits a plan with `guard_mode_complete`.
 4. You decide:
    - `/guard implement` — accept the plan and start implementation (full tool access restored)
    - `/guard exit` — exit Guard Mode and discard the plan
@@ -36,8 +36,8 @@ The old `/guard-start` and `/guard:allow` commands are **removed** — use `/gua
 
 ### Tools
 
-- **`plan_mode_question`** — Ask the user 1–3 clarification questions with meaningful options. Only available while Guard Mode is active.
-- **`plan_mode_complete`** — Submit a plan for user review. Only available while Guard Mode is active.
+- **`guard_mode_question`** — Ask the user 1–3 clarification questions with meaningful options. Only available while Guard Mode is active.
+- **`guard_mode_complete`** — Submit a plan for user review. Only available while Guard Mode is active.
 
 ## Tool Policy
 
@@ -100,7 +100,7 @@ After installation, the extension is active automatically. Start planning:
 /guard
 ```
 
-The agent enters Guard Mode (bilingual prompt), explores, asks questions with `plan_mode_question`, and submits a plan with `plan_mode_complete`. Then you choose `/guard implement` or `/guard exit`.
+The agent enters Guard Mode (bilingual prompt), explores, asks questions with `guard_mode_question`, and submits a plan with `guard_mode_complete`. Then you choose `/guard implement` or `/guard exit`.
 
 Start pi directly in Guard Mode:
 
@@ -145,8 +145,8 @@ pi-guard-extension/
     ├── command.ts                  # /guard argument completions
     ├── message-transform.ts        # Context filtering in Guard Mode
     ├── presentation.ts             # TUI status rendering
-    ├── question-tool.ts            # plan_mode_question tool
-    ├── completion-tool.ts          # plan_mode_complete tool
+    ├── question-tool.ts            # guard_mode_question tool
+    ├── completion-tool.ts          # guard_mode_complete tool
     ├── subagent-policy.ts          # Subagent allowlist enforcement
     ├── active-implementation-menu.ts
     ├── required-tools.ts           # Tool visibility during planning
@@ -157,7 +157,7 @@ pi-guard-extension/
 
 ### Key components
 
-- **`plan-mode.ts`** — `createGuard()` factory returning the extension entry function. Registers the `guard` flag, the `/guard` command, `plan_mode_question` / `plan_mode_complete` tools, and hooks `session_start`, `thinking_level_select`, `session_shutdown`, `tool_call`, `context`, `before_agent_start`, `agent_end`.
+- **`plan-mode.ts`** — `createGuard()` factory returning the extension entry function. Registers the `guard` flag, the `/guard` command, `guard_mode_question` / `guard_mode_complete` tools, and hooks `session_start`, `thinking_level_select`, `session_shutdown`, `tool_call`, `context`, `before_agent_start`, `agent_end`.
 - **`tool-policy.ts`** — Classifies every tool into one of five policies and enforces the path allowlist and bash safety rules.
 - **`state.ts`** — Owns the current plan, active implementation, tool selection, and session persistence/restore.
 - **`settings.ts`** — Loads and validates `~/.pi/agent/pi-guard.json`; invalid files fail closed.
