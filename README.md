@@ -48,6 +48,10 @@ pi-guard/
 
 ## Getting Started
 
+> The repo uses **npm workspaces**: `pi-guard-extension/` is declared in the root
+> `package.json`, so `pi install` (which runs `npm install` at the repo root) installs
+> the nested extension's dependencies automatically.
+
 ```bash
 # Quick test (from repo root)
 pi -e ./pi-guard-extension

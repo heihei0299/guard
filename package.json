@@ -1,6 +1,9 @@
 {
   "name": "pi-guard",
   "private": true,
+  "workspaces": [
+    "pi-guard-extension"
+  ],
   "pi": {
     "extensions": [
       "./pi-guard-extension"
