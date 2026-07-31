@@ -6,6 +6,7 @@ Pi 扩展，实现 Guard Mode（Plan Mode）协作模式：用户显式进入只
 
 **Guard Mode（守卫模式）**:
 用户显式激活的只读规划协作模式，通过 `/guard` 命令或 `--guard` 启动标志进入。激活期间写操作仅允许路径白名单内的路径，bash 受安全策略约束，AI 必须通过 `guard_mode_complete` 提交计划才能进入实现阶段。
+Guard Mode 是**工作流约束（纪律提醒）而非安全边界**：它防的是"规划阶段顺手改代码"这类疏忽，不承诺防御有意的绕过（symlink、进程逃逸等不在防护范围）。
 _Avoid_: 三态守卫、守卫状态机
 
 **Planning（规划阶段）**:
@@ -14,6 +15,7 @@ _Avoid_: 探索模式、起草模式
 
 **Plan Ready（计划就绪）**:
 AI 通过 `guard_mode_complete` 提交完整计划后的状态，等待用户决定 implement 或 exit。
+plan 的生命周期限于提交它的那一轮 agent 回合：新一轮 agent 开始即清除，AI 必须重新提交；跨轮/跨 session 的恢复仅用于用户展示与 implement/exit 决策。
 _Avoid_: 计划完成、待审批
 
 **Implementing（实现阶段）**:
