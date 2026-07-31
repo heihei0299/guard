@@ -10,7 +10,7 @@ import { evaluate, evaluateAnyValue, wildcardMatch, composeRuleset, synthesizeDe
 import type { Rule, Ruleset } from "./rule-engine.ts";
 import { getPathPolicyValues } from "./path-normalizer.ts";
 import { loadPermissionConfig } from "./permission-config.ts";
-import { buildGuardPrompt } from "./prompt-injector.ts";
+
 
 // ── Exports ────────────────────────────────────────────────────────────
 
@@ -144,7 +144,7 @@ export function createGuard(options?: GuardExtensionOptions) {
   return function guardExtension(pi: ExtensionAPI): void {
     const guard = createStateMachine({ targetSkills } satisfies GuardMachineOptions);
     let currentRuleset: Ruleset = [];
-    let promptInjected = false;
+
 
     /**
      * Load the effective ruleset from config files.
@@ -154,43 +154,28 @@ export function createGuard(options?: GuardExtensionOptions) {
     }
 
     /**
-     * Inject the guard prompt into the system message.
+     * @deprecated Legacy rule-engine prompt injection.
+     * No-op stub: the prompt-injector module was removed in Ticket 03.
+     * This function and its call sites are deleted when index.ts is
+     * rewritten in Ticket 05.
      */
-    function injectPrompt(ctx: any) {
-      if (promptInjected) return;
-      // Build and inject the prompt
-      const prompt = buildGuardPrompt(currentRuleset);
-      // Try to inject via ctx API (pi may support system prompt injection)
-      try {
-        if (typeof ctx.injectSystemPrompt === "function") {
-          ctx.injectSystemPrompt(prompt);
-          promptInjected = true;
-        }
-      } catch {
-        // Silently fail if injection is not supported
-      }
+    function injectPrompt(_ctx: unknown) {
+      // No-op — Guard Mode prompt building now lives in prompt.ts.
     }
 
     /**
-     * Remove the injected guard prompt.
+     * @deprecated Legacy rule-engine prompt removal.
+     * No-op stub: the prompt-injector module was removed in Ticket 03.
+     * Removed entirely when index.ts is rewritten in Ticket 05.
      */
-    function removePrompt(ctx: any) {
-      if (!promptInjected) return;
-      try {
-        if (typeof ctx.removeSystemPrompt === "function") {
-          ctx.removeSystemPrompt();
-          promptInjected = false;
-        }
-      } catch {
-        // Silently fail
-      }
+    function removePrompt(_ctx: unknown) {
+      // No-op — prompt injection no longer exists.
     }
 
     // ── Session start: rebuild guard state from history ──────────────
     pi.on("session_start", async (event, ctx) => {
       if (event.reason === "startup") {
         guard.reset();
-        promptInjected = false;
       }
       // Load ruleset
       const projectRoot = event.projectRoot

@@ -3,7 +3,6 @@
  *
  * Provides the central decision-making functions for Plan Mode:
  * - State factory and helpers
- * - System prompt builder (three-mode prompt)
  * - Tool call classification (allow/block decisions)
  *
  * Event handler registration is not included here — it belongs in the
@@ -12,7 +11,7 @@
 
 import type { PlanModeState } from "./state.ts";
 import type { ToolInfo } from "@earendil-works/pi-coding-agent";
-import { classifyPlanModeTool, isSafeCommand, isPathAllowed, DEFAULT_ALLOW_WRITE_PATHS } from "./tool-policy.ts";
+import { classifyPlanModeTool, isSafeCommand, isPathAllowed } from "./tool-policy.ts";
 // ── State ──────────────────────────────────────────────────────────────────
 
 /**
@@ -20,73 +19,6 @@ import { classifyPlanModeTool, isSafeCommand, isPathAllowed, DEFAULT_ALLOW_WRITE
  */
 export function createPlanModeState(): PlanModeState {
   return { enabled: false, awaitingAction: false };
-}
-
-// ── Prompt Builder ─────────────────────────────────────────────────────────
-
-/**
- * Build the Plan Mode system prompt based on the current state.
- *
- * Returns an empty string when Plan Mode is inactive.
- * Otherwise returns a three-section prompt describing the current mode,
- * path allowlist, and any active plan/implementation.
- */
-export function buildPlanModePrompt(state: PlanModeState): string {
-  if (!state.enabled && !state.activeImplementation) return "";
-
-  const sections: string[] = [];
-
-  if (state.activeImplementation) {
-    // Active Implementation mode
-    sections.push("🔧 Guard Mode: Active Implementation");
-    sections.push("");
-    sections.push("You are implementing an accepted plan. Full tool access is restored.");
-    sections.push("");
-    sections.push("【Active Plan】");
-    sections.push(state.activeImplementation.plan);
-    sections.push("");
-    sections.push("Use `/guard show` to view the active plan at any time.");
-    return sections.join("\n");
-  }
-
-  if (!state.enabled) return "";
-
-  // Plan Mode is enabled
-  if (state.awaitingAction && state.latestPlan) {
-    // Plan Ready state
-    sections.push("✅ Guard Mode: Plan Ready");
-    sections.push("");
-    sections.push("A plan has been submitted and is waiting for your decision.");
-    sections.push("");
-    sections.push("【Submitted Plan】");
-    sections.push(state.latestPlan);
-    sections.push("");
-    sections.push("Options:");
-    sections.push("- `/guard implement` — Accept and implement the plan");
-    sections.push("- `/guard continue` — Continue planning without implementing");
-    sections.push("- `/guard exit` — Exit Guard Mode and discard the plan");
-    return sections.join("\n");
-  }
-
-  // Planning mode
-  sections.push("🔒 Guard Mode: Planning");
-  sections.push("");
-  sections.push("You are in Guard Mode. You can explore the codebase, ask questions, and create a plan.");
-  sections.push("Direct code changes are restricted to allowlisted paths.");
-  sections.push("");
-  sections.push("【Path Allowlist】");
-  sections.push(`The following paths can be written to:`);
-  for (const p of DEFAULT_ALLOW_WRITE_PATHS) {
-    sections.push(`  - \`${p}\``);
-  }
-  sections.push("");
-  sections.push("【Workflow】");
-  sections.push("1. Explore and understand the codebase");
-  sections.push("2. Ask questions using `plan_mode_question` if needed");
-  sections.push("3. Submit your plan using `plan_mode_complete`");
-  sections.push("4. Wait for the user to review and decide");
-
-  return sections.join("\n");
 }
 
 // ── Tool Call Classification ───────────────────────────────────────────────

@@ -9,9 +9,8 @@
  */
 
 import { unique } from "./tool-selection.ts";
-
-export const PLAN_MODE_QUESTION_TOOL_NAME = "plan_mode_question";
-export const PLAN_MODE_COMPLETE_TOOL_NAME = "plan_mode_complete";
+import { PLAN_MODE_QUESTION_TOOL_NAME } from "./question-tool.ts";
+import { PLAN_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts";
 
 /**
  * Ensure the Plan Mode required tools are present in a tool name array.
