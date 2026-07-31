@@ -1,80 +1,76 @@
 # Pi Guard Extension 🔒
 
-A [pi](https://pi.dev) extension that enforces the **"no unauthorized actions after skill conversations"** policy at the tool-call level.
+A [pi](https://pi.dev) extension that implements **Guard Mode** — a structured planning workflow enforced at the tool-call level. While Guard Mode is active, the agent explores and plans but cannot modify files or run destructive commands except through the plan workflow.
 
 ## Problem
 
-When an AI assistant finishes a skill-based conversation (e.g., `/skill:to-spec`, `/skill:grill-me`), it might attempt to write files or execute commands without explicit user permission — violating project rules like the one in `AGENTS.md`:
-
-> 使用 `grill-with-docs`、`wayfinder`、`grill-me`、`to-spec`、`to-tickets` 技能与用户完成讨论后，不得对工作目录下的任何文件执行写操作（创建、修改、删除），不得执行任何命令。
-
-This extension enforces that rule mechanically by intercepting tool calls.
+When an AI assistant plans a large piece of work, it may start modifying files before the plan is agreed. Guard Mode makes that impossible: write operations are limited to an allowlist, `bash` is restricted to safe commands, and the agent must submit a plan via `plan_mode_complete` before you decide to implement.
 
 ## How It Works
 
-The guard is a **three-state state machine**:
+Guard Mode is a planning workflow:
 
-```
-                    input target skill command
-  ┌─────┐  ──────────────────────────────────► ┌──────┐
-  │normal│                                      │skill │
-  │      │◄──── /guard:allow ────────────────── │_active│
-  └─────┘                                       └──┬───┘
-       ▲                                            │
-       │                              agent_settled  │
-       │                                            ▼
-       │                                        ┌────────┐
-       └───────── /guard:allow ──────────────── │guarded │
-                                                └────────┘
-```
+1. Enter Guard Mode with `/guard` (or start pi with `--guard`).
+2. The agent explores read-only (`read`, `grep`, `find`, `ls`), may write only to allowlisted paths, and may run only safe `bash` commands.
+3. The agent asks questions with `plan_mode_question` and submits a plan with `plan_mode_complete`.
+4. You decide:
+   - `/guard implement` — accept the plan and start implementation (full tool access restored)
+   - `/guard exit` — exit Guard Mode and discard the plan
+   - start a new planning round with `/guard <prompt>`
+5. The plan and Guard Mode state persist across `/resume`.
 
-| Transition | Trigger |
+### Commands
+
+| Command | Behavior |
 |---|---|
-| `normal` → `skill_active` | User runs `/skill:to-spec`, `/skill:to-tickets`, `/skill:grill-me`, `/skill:grill-with-docs`, or `/skill:wayfinder` |
-| `skill_active` → `guarded` | `agent_settled` event (skill processing fully complete) |
-| `guarded` → `normal` | User runs `/guard:allow` command |
-| `guarded` → `skill_active` | User runs another target skill command |
+| `/guard` | Enter Guard Mode, or show the plan menu if already active |
+| `/guard <prompt>` | Enter Guard Mode with an initial planning prompt |
+| `/guard show` | Show the stored plan |
+| `/guard finalize` | Ask the agent to submit its final plan |
+| `/guard implement` | Accept the plan and start implementation |
+| `/guard tools` | Open the tool selector |
+| `/guard exit`, `/guard off` | Exit Guard Mode and discard the plan |
+| `--guard` (flag) | Start pi in Guard Mode |
 
-In **`guarded`** mode, tools are handled as follows:
+The old `/guard-start` and `/guard:allow` commands are **removed** — use `/guard` and `/guard exit`.
 
-| Tool | Behavior |
-|---|---|
-| `write` / `replace` | Blocked (with **path allowlist** pass-through for `.scratch/`, `docs/`, `CONTEXT.md`) |
-| `bash` | **Write-type** commands blocked; **read-only** commands allowed (see below) |
-| `read`, `grep`, `find`, `ls` | Always allowed |
+### Tools
+
+- **`plan_mode_question`** — Ask the user 1–3 clarification questions with meaningful options. Only available while Guard Mode is active.
+- **`plan_mode_complete`** — Submit a plan for user review. Only available while Guard Mode is active.
+
+## Tool Policy
+
+While Guard Mode is active, tools are classified as:
+
+| Policy | Tools | Behavior |
+|---|---|---|
+| `read-only` | `read`, `grep`, `ffgrep`, `find`, `ffind`, `fffind`, `ls` | Always allowed |
+| `allowlisted` | `write`, `replace` | Path checked against the allowlist |
+| `limited` | `bash` | Command checked against the bash safety policy |
+| `blocked` | `edit`, `update_plan` | Always intercepted |
+| `user-opt-in` | custom / user tools | Disabled by default |
 
 ### Path allowlist
 
-`write` and `replace` calls targeting the following paths are **allowed** even in guarded mode:
+`write`/`replace` calls targeting the following paths are **allowed** while planning:
 
 | Path | Match Rule |
 |---|---|
 | `.scratch/` | Prefix match — any file under `.scratch/` |
 | `docs/` | Prefix match — any file under `docs/` |
-| `CONTEXT.md` | Exact match — only root-level `CONTEXT.md` |
+| `CONTEXT.md` | Exact / suffix match — any `CONTEXT.md` file (root or nested) |
 
-### Bash read-only command passthrough
+Leading `./` is normalized and `~` is expanded. Any other path is blocked and the agent turn is aborted with a bilingual message.
 
-In guarded mode, `bash` commands are classified as **read-only** (allowed) or **write** (blocked):
+### Bash safety
 
-**Allowed** (read-only):
-- `ls`, `cat`, `head`, `tail`, `less`, `more`, `wc`
-- `grep`, `fgrep`, `rg`, `ag`, `find`
-- `file`, `stat`, `du`, `df`, `which`, `type`
-- `echo`, `printf`
-- `ps`, `top`, `htop`, `uptime`, `date`, `cal`
-- `ping`, `dig`, `nslookup`, `host`
-- `git log`, `git status`, `git diff`, `git show`, `git branch`, `git tag`, `git describe`, `git rev-parse`, `git ls-files`, `git stash list`
+`bash` commands are classified read-only (allowed) or write (blocked):
 
-**Blocked** (write-type):
-- Any command containing `>` / `>>` / `<` redirect operators
-- `sed -i`, `awk`, `tee`, `dd`, `touch`, `mkdir`, `rmdir`, `rm`, `mv`, `cp`, `ln`
-- `chmod`, `chown`, `chattr`
-- `git add`, `git commit`, `git push`, `git pull`, `git merge`, `git rebase`, `git reset`, `git checkout`, `git branch -d`, `git tag -d`, `git stash push`, `git stash drop`
-- `npm install`, `npm publish`, `uv sync`, `pip install`
-- Unknown commands (conservative default: block)
-
-When a session is **resumed** (`/resume`), the extension scans session history and restores `guarded` state if a target skill was previously activated.
+- **Always allowed**: `cat`, `head`, `tail`, `less`, `more`, `ls`, `wc`, `grep`, `ffgrep`, `find`, `ffind`, `rg`, `ag`, `file`, `stat`, `du`, `df`, `which`, `type`, `echo`, `printf`, `ps`, `top`, `htop`, `uptime`, `date`, `cal`, `ping`, `dig`, `nslookup`, `host`, `curl`, `mkdir`, `pwd`, `sort`, `uniq`, `diff`, `tree`, `whereis`, `printenv`, `uname`, `whoami`, `id`, `jq`, `bat`, `eza`, `fd`
+- **Always blocked**: `rm`, `mv`, `cp`, `touch`, `rmdir`, `ln`, `chmod`, `chown`, `chattr`, `tee`, `dd`, `mkfs`, `mount`, `sed -i`, `awk -i`, and any command containing `>` / `>>` / `<` redirects (`sed`/`awk` without `-i` are allowed as read-only)
+- **Structured commands** allow only safe subcommands: `git` (`log`, `status`, `diff`, `show`, `branch`, `tag`, `describe`, `rev-parse`, `ls-files`, `stash list`), `gh` (`pr view`, `pr list`, `issue view`, `issue list`, `search`, `repo`, `auth`), `npm` (`list`, `view`, `info`, `search`, `outdated`, `audit`, `test`, `run test`, `run check`, `run typecheck`, `run lint`), `npx tsc`, `node --version`, `python --version`, `cargo test/check`, `go test/check/vet/fmt`, `pytest`, `vitest`, `jest`
+- **Unknown commands** are conservatively blocked
 
 ## Installation
 
@@ -90,12 +86,6 @@ pi -e ./pi-guard-extension
 pi install ./pi-guard-extension
 ```
 
-Or from npm (once published):
-
-```bash
-pi install npm:pi-guard-extension
-```
-
 ### Project-local installation
 
 ```bash
@@ -104,118 +94,86 @@ pi install -l ./pi-guard-extension
 
 ## Usage
 
-After installation, the guard is active automatically.
-
-### Blocking behavior
-
-When the guard is in `guarded` mode and the AI attempts a blocked operation, you'll see:
+After installation, the extension is active automatically. Start planning:
 
 ```
-🔒 技能讨论已完成，禁止擅自操作。
-Guard mode: skill conversation completed, unauthorized actions blocked.
-请使用 /guard:allow 临时关闭守卫。
-Use /guard:allow to temporarily disable guard mode.
+/guard
 ```
 
-The tool call is blocked and the agent turn is aborted.
+The agent enters Guard Mode (bilingual prompt), explores, asks questions with `plan_mode_question`, and submits a plan with `plan_mode_complete`. Then you choose `/guard implement` or `/guard exit`.
 
-### `/guard:allow` command
+Start pi directly in Guard Mode:
 
-To temporarily disable the guard (e.g., when you want the AI to write files after a skill conversation):
-
+```bash
+pi --guard
 ```
-/guard:allow
-```
-
-The guard returns to `normal` mode. It will re-activate automatically when you run another target skill command.
-
-### Session resume
-
-When you `/resume` a session where target skills were used, the guard is automatically restored to `guarded` state.
 
 ## Configuration
 
-### Custom target skills
+Guard Mode reads optional settings from `~/.pi/agent/pi-guard.json`:
 
-You can customize which skills trigger the guard by importing `createGuard` in your own extension:
-
-```typescript
-import { createGuard } from "./path/to/pi-guard-extension/src/index.ts";
-
-export default createGuard({
-  targetSkills: ["to-tickets", "grill-me", "my-custom-skill"],
-});
+```json
+{
+  "thinkingLevel": "medium",
+  "defaultPlanTools": ["read", "bash", "edit", "write"],
+  "allowedPlanSubagents": ["explore", "research"]
+}
 ```
 
-### Default skills
+| Key | Type | Description |
+|---|---|---|
+| `thinkingLevel` | `string` | One of `inherit` (default), `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| `defaultPlanTools` | `string[]` | Tool names available while planning (when unset: the read-only tools plus `bash` — `read`, `grep`, `find`, `ls`, `bash`) |
+| `allowedPlanSubagents` | `string[]` | Subagent names allowed to spawn while planning |
 
-```typescript
-const DEFAULT_TARGET_SKILLS = [
-  "to-spec",
-  "to-tickets",
-  "grill-me",
-  "grill-with-docs",
-  "wayfinder",
-];
-```
+A missing file is fine (defaults apply). An invalid file is ignored with a warning notification. The old config format (`targetSkills`, `allowWritePaths`) is not migrated — reconfigure with the new keys above.
 
 ## Architecture
 
+```
 pi-guard-extension/
 ├── package.json          # Package manifest with pi extension entry
-├── tsconfig.json         # TypeScript configuration
+├── tsconfig.json         # TypeScript configuration (NodeNext, strict)
 ├── vitest.config.ts      # Test configuration
-├── src/
-│   ├── index.ts          # Extension main logic (event handlers + factory)
-│   ├── index.test.ts     # Integration tests for event handlers
-│   ├── guard.ts          # Pure state machine (normal → skill_active → guarded)
-│   └── guard.test.ts     # Unit tests for state machine
-└── README.md             # This file
+└── src/
+    ├── index.ts                    # Thin forwarder: re-exports createGuard
+    ├── plan-mode.ts                # createGuard() wiring — /guard command, --guard flag, both tools, all event hooks
+    ├── tool-policy.ts              # classifyPlanModeTool, path allowlist (isPathAllowed), bash safety (isSafeCommand)
+    ├── state.ts                    # PlanModeState, restorePlanModeState (session resume), plan normalization
+    ├── settings.ts                 # ~/.pi/agent/pi-guard.json loading and validation
+    ├── prompt.ts                   # Bilingual Guard Mode system prompt
+    ├── command.ts                  # /guard argument completions
+    ├── message-transform.ts        # Context filtering in Guard Mode
+    ├── presentation.ts             # TUI status rendering
+    ├── question-tool.ts            # plan_mode_question tool
+    ├── completion-tool.ts          # plan_mode_complete tool
+    ├── subagent-policy.ts          # Subagent allowlist enforcement
+    ├── active-implementation-menu.ts
+    ├── required-tools.ts           # Tool visibility during planning
+    ├── tool-selection.ts           # Tool diffing helpers
+    ├── extension-runtime.ts
+    └── *.test.ts                   # Vitest suite (unit + integration)
+```
 
 ### Key components
 
-- **`guard.ts`** — `createStateMachine()` factory returning a pure state machine (GuardMachine interface) managing the three states and transitions.
-- **`index.ts`** — Extension glue that wires the state machine to pi events:
-  - `session_start` — Rebuild state from session history.
-  - `input` — Detect target skill commands.
-  - `agent_settled` — Transition to guarded mode.
-  - `tool_call` — Block write/edit/bash when guarded.
-- **`/guard:allow`** — Command to temporarily disable guard.
-
-### Events used
-
-| Event | Purpose |
-|---|---|
-| `session_start` | Rebuild guard state on session load/resume |
-| `input` | Detect target skill commands |
-| `agent_settled` | Detect skill completion → enter guarded |
-| `tool_call` | Intercept write/edit/bash in guarded mode |
+- **`plan-mode.ts`** — `createGuard()` factory returning the extension entry function. Registers the `guard` flag, the `/guard` command, `plan_mode_question` / `plan_mode_complete` tools, and hooks `session_start`, `thinking_level_select`, `session_shutdown`, `tool_call`, `context`, `before_agent_start`, `agent_end`.
+- **`tool-policy.ts`** — Classifies every tool into one of five policies and enforces the path allowlist and bash safety rules.
+- **`state.ts`** — Owns the current plan, active implementation, tool selection, and session persistence/restore.
+- **`settings.ts`** — Loads and validates `~/.pi/agent/pi-guard.json`; invalid files fail closed.
 
 ## Development
 
 ```bash
 # Type-check
-npx tsc --noEmit --strict
+npx tsc --noEmit
 
 # Run tests
 npm test
 
 # Run tests in watch mode
 npm run test:watch
-
-# Test in print mode
-pi -e . -p "test prompt"
 ```
-
-## Publishing
-
-To publish to npm:
-
-```bash
-npm publish
-```
-
-Make sure `package.json` includes the `"pi-package"` keyword for pi gallery discoverability.
 
 ## License
 

@@ -40,3 +40,4 @@
 - pi-permission-system 集成
 - **Ticket 05 (main entry) resolved** — 主入口接线完成：`createGuard()` 工厂 + `/guard` 命令 + `--guard` 标志 + 两个工具 + 全部事件钩子；接线位于 `src/plan-mode.ts`（index.ts 为薄转发器）；code review 修复 tool_call 路径白名单强制、非 TUI reject、thin-forwarder 硬违规。详见 `issues/05-main-entry.md`
 - **Ticket 06 (tests) resolved** — 测试套件补强至 391 个（20 文件）；修复状态恢复真实缺陷（`restorePlanModeState` 恢复 selectedToolNames/thinking/plan 归一化，`session_start` 重新应用 thinking level）；新增 default-tools/subagent-allowlist/safe-subcommands/active-implementation 集成测试文件。详见 `issues/06-tests.md`
+- **Ticket 07 (cleanup & verification) resolved** — 删除全部旧模块（guard/config/rule-engine/bash-command-classifier/path-normalizer/permission-config 及 rule-engine.test.ts，共 7 文件，删除前基线 391 passed）；两份 README 重写为 Guard Mode 架构（`/guard` 命令族替代 `/guard-start`/`/guard:allow`、`~/.pi/agent/pi-guard.json` 配置、安装用法示例）；code review 修复 4 处文档与代码不符；最终 343 passed + tsc 零错误。详见 `issues/07.md`
