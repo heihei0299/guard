@@ -1,4 +1,5 @@
 import { GUARD_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts"
+import { GUARD_MODE_QUESTION_TOOL_NAME } from "./question-tool.ts"
 import type { ActiveImplementationPlan } from "./state.ts"
 /**
  * Guard Plan Mode message transformation helpers.
@@ -120,11 +121,23 @@ export function stripProposedPlanBlocksFromMessage<T>(message: T): T {
  * Returns the original message when nothing changes.
  */
 export function stripPlanModeCompletionCallsFromMessage<T>(message: T): T {
+  return stripToolCallsFromMessage(message, GUARD_MODE_COMPLETE_TOOL_NAME)
+}
+
+/**
+ * Remove `guard_mode_question` tool-call blocks from assistant content.
+ * Returns the original message when nothing changes.
+ */
+export function stripPlanModeQuestionCallsFromMessage<T>(message: T): T {
+  return stripToolCallsFromMessage(message, GUARD_MODE_QUESTION_TOOL_NAME)
+}
+
+function stripToolCallsFromMessage<T>(message: T, toolName: string): T {
   return replaceAssistantContent(message, (content) => {
     if (!Array.isArray(content)) return content
     const nextContent = content.filter((block) => {
       const candidate = block as { type?: string; name?: string }
-      return !(candidate.type === "toolCall" && candidate.name === GUARD_MODE_COMPLETE_TOOL_NAME)
+      return !(candidate.type === "toolCall" && candidate.name === toolName)
     })
     return nextContent.length === content.length ? content : nextContent
   })
@@ -207,13 +220,16 @@ export function messageContainsPlanModeImplementationContextArtifact(message: un
 
 /**
  * Detect messages that are stale when Plan Mode is inactive:
- * proposed-plan custom messages and guard_mode_complete tool results.
+ * proposed-plan custom messages and guard_mode_complete /
+ * guard_mode_question tool results.
  */
 export function messageContainsInactivePlanModeArtifact(message: unknown) {
   const candidate = unwrapSessionMessage(message)
   return (
     candidate.customType === PROPOSED_PLAN_MESSAGE_TYPE ||
-    (candidate.role === "toolResult" && candidate.toolName === GUARD_MODE_COMPLETE_TOOL_NAME)
+    (candidate.role === "toolResult" &&
+      (candidate.toolName === GUARD_MODE_COMPLETE_TOOL_NAME ||
+        candidate.toolName === GUARD_MODE_QUESTION_TOOL_NAME))
   )
 }
 

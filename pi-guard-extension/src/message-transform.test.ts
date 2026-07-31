@@ -6,6 +6,7 @@ import {
   stripProposedPlanBlocks,
   stripProposedPlanBlocksFromMessage,
   stripPlanModeCompletionCallsFromMessage,
+  stripPlanModeQuestionCallsFromMessage,
   latestAssistantText,
   messageContainsInactivePlanModeArtifact,
   messageContainsLegacyPlanModeContextArtifact,
@@ -125,6 +126,31 @@ describe("stripPlanModeCompletionCallsFromMessage", () => {
   })
 })
 
+describe("stripPlanModeQuestionCallsFromMessage", () => {
+  it("removes question tool calls from assistant content", () => {
+    const message = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "keep explanation" },
+        { type: "toolCall", id: "q-call", name: "guard_mode_question", arguments: {} },
+        { type: "toolCall", id: "read-call", name: "read", arguments: {} },
+      ],
+    }
+    expect(stripPlanModeQuestionCallsFromMessage(message)).toEqual({
+      role: "assistant",
+      content: [
+        { type: "text", text: "keep explanation" },
+        { type: "toolCall", id: "read-call", name: "read", arguments: {} },
+      ],
+    })
+  })
+
+  it("returns the message unchanged when nothing is stripped", () => {
+    const message = { role: "assistant", content: [{ type: "text", text: "keep" }] }
+    expect(stripPlanModeQuestionCallsFromMessage(message)).toBe(message)
+  })
+})
+
 describe("latestAssistantText", () => {
   it("returns the latest non-empty assistant text", () => {
     expect(
@@ -155,6 +181,15 @@ describe("messageContainsInactivePlanModeArtifact", () => {
       messageContainsInactivePlanModeArtifact({
         role: "toolResult",
         toolName: "guard_mode_complete",
+      }),
+    ).toBe(true)
+  })
+
+  it("detects guard_mode_question tool results", () => {
+    expect(
+      messageContainsInactivePlanModeArtifact({
+        role: "toolResult",
+        toolName: "guard_mode_question",
       }),
     ).toBe(true)
   })

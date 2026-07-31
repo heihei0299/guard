@@ -411,6 +411,70 @@ describe("context filtering", () => {
     expect(result.messages).toEqual(messages);
   });
 
+  it("strips guard_mode_question Q&A artifacts when Guard mode is off", async () => {
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext();
+    const contextHook = mock.events.get("context")?.[0];
+
+    const assistantWithQuestion = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "keep explanation" },
+        { type: "toolCall", id: "q-call", name: "guard_mode_question", arguments: {} },
+        { type: "toolCall", id: "read-call", name: "read", arguments: {} },
+      ],
+    };
+    const questionResult = {
+      role: "toolResult",
+      toolCallId: "q-call",
+      toolName: "guard_mode_question",
+      content: [{ type: "text", text: "Which approach do you prefer?" }],
+    };
+
+    const result = (await contextHook?.(
+      { messages: [assistantWithQuestion, questionResult, unrelatedResult] },
+      context.ctx,
+    )) as { messages: unknown[] };
+
+    expect(result.messages).toEqual([
+      {
+        ...assistantWithQuestion,
+        content: [assistantWithQuestion.content[0], assistantWithQuestion.content[2]],
+      },
+      unrelatedResult,
+    ]);
+  });
+
+  it("keeps guard_mode_question Q&A artifacts while Guard mode is active", async () => {
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    const contextHook = mock.events.get("context")?.[0];
+
+    const assistantWithQuestion = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "keep explanation" },
+        { type: "toolCall", id: "q-call", name: "guard_mode_question", arguments: {} },
+      ],
+    };
+    const questionResult = {
+      role: "toolResult",
+      toolCallId: "q-call",
+      toolName: "guard_mode_question",
+      content: [{ type: "text", text: "Which approach do you prefer?" }],
+    };
+
+    const result = (await contextHook?.(
+      { messages: [assistantWithQuestion, questionResult] },
+      context.ctx,
+    )) as { messages: unknown[] };
+
+    expect(result.messages).toEqual([assistantWithQuestion, questionResult]);
+  });
+
   it("keeps the exact implementation handoff and drops stale handoffs", async () => {
     const mock = createMockPi({ activeTools: ["read"] });
     createGuard()(mock.pi);

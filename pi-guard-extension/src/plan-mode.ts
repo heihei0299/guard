@@ -38,6 +38,7 @@ import {
   parseProposedPlan,
   PLAN_IMPLEMENTATION_HANDOFF_PREFIX,
   stripPlanModeCompletionCallsFromMessage,
+  stripPlanModeQuestionCallsFromMessage,
   stripProposedPlanBlocksFromMessage,
 } from "./message-transform.ts";
 import {
@@ -363,6 +364,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
         .filter((message: unknown) => !messageContainsInactivePlanModeArtifact(message))
         .map(stripProposedPlanBlocksFromMessage)
         .map(stripPlanModeCompletionCallsFromMessage)
+        .map(stripPlanModeQuestionCallsFromMessage)
         .filter((message: unknown) => !isEmptyAssistantMessage(message));
       const contextualMessages = state.activeImplementation
         ? injectActiveImplementationContext(messages, state.activeImplementation)
