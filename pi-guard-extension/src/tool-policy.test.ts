@@ -183,6 +183,14 @@ describe("isSafeCommand", () => {
     expect(isSafeCommand('echo "a>b"')).toBe(true);
   });
 
+  it("allows escaped > (literal, not a redirect): echo a\\>b", () => {
+    expect(isSafeCommand("echo a\\>b")).toBe(true);
+  });
+
+  it("blocks glued redirect hidden by escape: echo a\\\"b>/tmp/xy\"z\"", () => {
+    expect(isSafeCommand('echo a\\"b>/tmp/xy"z"')).toBe(false);
+  });
+
   it("allows glued redirect to /dev/null: echo hi>/dev/null", () => {
     expect(isSafeCommand("echo hi>/dev/null")).toBe(true);
   });
@@ -282,6 +290,32 @@ describe("isSafeCommand", () => {
 
   it("blocks compound command with unsafe segment", () => {
     expect(isSafeCommand("cat file && rm -rf /")).toBe(false);
+  });
+
+  it("blocks segment split hidden by escaped quote: echo a\\\" ; rm -rf /tmp/x", () => {
+    expect(isSafeCommand('echo a\\" ; rm -rf /tmp/x')).toBe(false);
+  });
+
+  it("blocks ANSI-C quoted redirect: echo $'a\\''>/dev/null 2>/tmp/x", () => {
+    expect(isSafeCommand("echo $'a\\''>/dev/null 2>/tmp/x")).toBe(false);
+  });
+
+  it("blocks ANSI-C quoted separator: echo $'a\\''&>/dev/null; rm -rf /tmp/x", () => {
+    expect(isSafeCommand("echo $'a\\''&>/dev/null; rm -rf /tmp/x")).toBe(false);
+  });
+
+  it("blocks locale-quoted string: echo $\"a>b\"", () => {
+    // Conservative over-blocking: $"... " is rejected by the blanket
+    // ANSI-C/locale quoting rule even where bash would print harmlessly.
+    expect(isSafeCommand('echo $"a>b"')).toBe(false);
+  });
+
+  it("blocks bare & separator: echo hi&rm -rf /tmp/x", () => {
+    expect(isSafeCommand("echo hi&rm -rf /tmp/x")).toBe(false);
+  });
+
+  it("allows escaped semicolon (literal, not a separator): echo a\\;b", () => {
+    expect(isSafeCommand("echo a\\;b")).toBe(true);
   });
 
   it("allows compound command with all safe segments", () => {

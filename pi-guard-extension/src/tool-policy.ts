@@ -212,14 +212,22 @@ export function classifyPlanModeTool(tool: ToolInfo): PlanModeToolPolicy {
  * Check if a bash command is safe to execute in Plan Mode.
  *
  * Performs static analysis on the command string:
- * 1. Splits compound commands (;, |, ||, &&) into segments
- * 2. Checks each segment for shell expansion, dangerous commands, redirects
- * 3. Allows structured commands (git, npm, npx, etc.) with subcommand safety
- * 4. Default: unsafe (conservative)
+ * 1. Rejects ANSI-C / locale quoting ($'...', $"...")
+ * 2. Splits compound commands (;, |, ||, &&, bare &) into segments,
+ *    escape- and quote-aware (so \" and \; stay literal)
+ * 3. Checks each segment for shell expansion, dangerous commands, redirects
+ * 4. Allows structured commands (git, npm, npx, etc.) with subcommand safety
+ * 5. Default: unsafe (conservative)
  */
 export function isSafeCommand(command: string): boolean {
   const trimmed = command.trim();
   if (!trimmed) return true;
+
+  // ANSI-C quoting ($'...') is a bashism whose backslash escapes are
+  // invisible to the quote-state scanners and can hide redirects and
+  // separators (e.g. $'a\''>/tmp/x writes a file). Locale quoting ($"...")
+  // is rejected too, as a conservative blanket rule. Reject outright.
+  if (trimmed.includes("$'") || trimmed.includes('$"')) return false;
 
   // Block newlines and backticks (subshell)
   if (trimmed.includes("\n")) return false;
@@ -235,6 +243,48 @@ export function isSafeCommand(command: string): boolean {
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 /**
+ * Remove quoted sections from a token, escape-aware.
+ *
+ * Bash semantics: inside single quotes nothing is escaped and no character
+ * ends the quote except '; inside double quotes a backslash escapes the next
+ * character. A backslash outside quotes escapes the next character too, so
+ * \" and \' are literal quote characters, not quote delimiters, and \> is a
+ * literal > (not a redirect).
+ *
+ * Escaped characters and quoted spans are dropped; everything else is kept,
+ * so the result contains exactly the characters that are shell-active.
+ */
+function stripQuotedSections(input: string): string {
+  let out = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let escaped = false;
+
+  for (const ch of input) {
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && !inSingleQuote) {
+      escaped = true;
+      continue;
+    }
+    if (ch === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    if (ch === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+    if (!inSingleQuote && !inDoubleQuote) {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/**
  * Split a command string into individual segments by shell separators.
  */
 function splitShellSegments(command: string): string[] {
@@ -242,10 +292,24 @@ function splitShellSegments(command: string): string[] {
   let current = "";
   let inSingleQuote = false;
   let inDoubleQuote = false;
+  let escaped = false;
 
   for (let i = 0; i < command.length; i++) {
     const ch = command[i];
     const next = i + 1 < command.length ? command[i + 1] : "";
+
+    // A backslash escapes the next character (outside single quotes), so
+    // \" and \; are literal and must not toggle quotes or split segments.
+    if (ch === "\\" && !inSingleQuote) {
+      current += ch;
+      escaped = true;
+      continue;
+    }
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
 
     if (ch === "'" && !inDoubleQuote) {
       inSingleQuote = !inSingleQuote;
@@ -271,6 +335,23 @@ function splitShellSegments(command: string): string[] {
         segments.push(current);
         current = "";
         i++; // skip next &
+        continue;
+      }
+      // &> / &>> operator: keep as one unit (redirect checks handle it)
+      if (ch === "&" && next === ">") {
+        current += ch;
+        continue;
+      }
+      // >&N fd-dup operator (e.g. 2>&1): keep as one unit
+      if (ch === "&" && current.endsWith(">")) {
+        current += ch;
+        continue;
+      }
+      // Bare & is a background separator in bash (echo hi&rm -rf /tmp/x
+      // runs rm); split like ; so the next segment is checked on its own.
+      if (ch === "&") {
+        segments.push(current);
+        current = "";
         continue;
       }
       // || splits into separate segments
@@ -385,11 +466,12 @@ function isSafeSegment(segment: string): boolean {
     }
     // Glued output redirect: > or >> inside a token, e.g. echo hi>/tmp/x,
     // echo hi2>/tmp/x, cmd >>log, or a fused redirect+target token like
-    // >/tmp/x. Quoted > is not a redirect, so quoted sections are ignored.
-    // Targets /dev/null and &N (e.g. echo hi>/dev/null, echo hi>&1) stay allowed.
+    // >/tmp/x. Quoted > is not a redirect, so quoted sections are removed
+    // (escape-aware, so \" does not open a quote). Targets /dev/null and &N
+    // (e.g. echo hi>/dev/null, echo hi>&1) stay allowed.
     // (Numbered/& forms like 2>file and &>file are governed by the rule above
     // only when the token starts with a digit or &.)
-    const unquoted = t.replace(/"[^"]*"|'[^']*'/g, "");
+    const unquoted = stripQuotedSections(t);
     const glued = unquoted.match(/^(.*[^&])?(>+)(.*)$/);
     if (glued) {
       const target = glued[3];
