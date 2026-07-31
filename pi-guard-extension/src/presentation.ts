@@ -34,7 +34,7 @@ export function updatePlanModeUi(
     ctx.ui.setWidget(PLAN_WIDGET_KEY, [
       "Guard mode: planning",
       toolSummary(),
-      "Finish with plan_mode_complete when decision-ready.",
+      "Finish with guard_mode_complete when decision-ready.",
     ])
   } else if (state.activeImplementation) {
     ctx.ui.setWidget(PLAN_WIDGET_KEY, [
@@ -62,7 +62,7 @@ export function planModeStatusText(state: PlanModeState, toolSummary: () => stri
     if (state.latestPlan) {
       return `Guard mode is active and a proposed plan is ready. ${toolSummary()}`
     }
-    return `Guard mode is active. ${toolSummary()} Explore, ask, and finish with plan_mode_complete when decision-ready.`
+    return `Guard mode is active. ${toolSummary()} Explore, ask, and finish with guard_mode_complete when decision-ready.`
   }
   if (state.activeImplementation) return "An implementation plan is active."
   return "Guard mode is off."

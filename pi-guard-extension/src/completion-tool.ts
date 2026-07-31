@@ -4,17 +4,17 @@ import { Markdown } from "@earendil-works/pi-tui";
 /**
  * Guard Plan Mode completion tool helpers.
  *
- * Pure validation and result-formatting logic for the `plan_mode_complete`
+ * Pure validation and result-formatting logic for the `guard_mode_complete`
  * tool. Tool registration lives in the extension entry point (index.ts).
  */
 
-export const PLAN_MODE_COMPLETE_TOOL_NAME = "plan_mode_complete";
+export const GUARD_MODE_COMPLETE_TOOL_NAME = "guard_mode_complete";
 export const PLAN_MODE_COMPLETE_VERSION = 1;
 export const PLAN_MODE_MAX_CHARS = 50_000;
 
 export type PlanModeCompletionDetails = {
   version: typeof PLAN_MODE_COMPLETE_VERSION;
-  source: typeof PLAN_MODE_COMPLETE_TOOL_NAME;
+  source: typeof GUARD_MODE_COMPLETE_TOOL_NAME;
   plan: string;
 };
 
@@ -35,7 +35,7 @@ export const PLAN_MODE_COMPLETE_PARAMS = {
 type NormalizePlanModeCompletionResult = { ok: true; plan: string } | { ok: false; error: string };
 
 /**
- * Validate and normalize the `plan_mode_complete` tool input.
+ * Validate and normalize the `guard_mode_complete` tool input.
  * Returns the trimmed plan on success, or an error message.
  */
 export function normalizePlanModeCompletion(input: unknown): NormalizePlanModeCompletionResult {
@@ -58,7 +58,7 @@ export function planFromCompletionDetails(value: unknown) {
   if (!isRecord(value)) return undefined;
   if (
     value.version !== PLAN_MODE_COMPLETE_VERSION ||
-    value.source !== PLAN_MODE_COMPLETE_TOOL_NAME
+    value.source !== GUARD_MODE_COMPLETE_TOOL_NAME
   ) {
     return undefined;
   }
@@ -78,7 +78,7 @@ export function planModeCompleted(plan: string) {
     content: [{ type: "text" as const, text: `**Proposed Plan**\n\n${plan}` }],
     details: {
       version: PLAN_MODE_COMPLETE_VERSION,
-      source: PLAN_MODE_COMPLETE_TOOL_NAME,
+      source: GUARD_MODE_COMPLETE_TOOL_NAME,
       plan,
     } satisfies PlanModeCompletionDetails,
     terminate: true,

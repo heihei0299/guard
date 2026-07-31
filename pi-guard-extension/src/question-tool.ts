@@ -2,11 +2,11 @@
  * Guard Plan Mode question tool helpers.
  *
  * Pure validation, interaction, and result-formatting logic for the
- * `plan_mode_question` tool. Tool registration lives in the extension
+ * `guard_mode_question` tool. Tool registration lives in the extension
  * entry point (index.ts).
  */
 
-export const PLAN_MODE_QUESTION_TOOL_NAME = "plan_mode_question";
+export const GUARD_MODE_QUESTION_TOOL_NAME = "guard_mode_question";
 
 export type PlanModeQuestionOption = {
   label: string;
@@ -74,7 +74,7 @@ type NormalizePlanModeQuestionParamsResult =
   | { ok: false; error: string };
 
 /**
- * Validate and normalize the `plan_mode_question` tool input.
+ * Validate and normalize the `guard_mode_question` tool input.
  * Returns the normalized questions on success, or an error message.
  */
 export function normalizePlanModeQuestionParams(

@@ -35,7 +35,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -53,7 +53,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: " ",
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -70,7 +70,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -104,7 +104,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -115,8 +115,8 @@ describe("active implementation lifecycle", () => {
     expect(context.statuses.get("plan-mode")).toBe("plan active");
     expect(mock.rawPi.getActiveTools()).toEqual([
       "read",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
   });
 
@@ -127,7 +127,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -151,7 +151,7 @@ describe("active implementation lifecycle", () => {
         activeImplementation: {
           id: "impl-1",
           plan: IMPLEMENTATION_PLAN,
-          source: "plan_mode_complete",
+          source: "guard_mode_complete",
           startedAt: 42,
         },
       },
@@ -180,7 +180,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -203,7 +203,7 @@ describe("active implementation lifecycle", () => {
       activeImplementation: {
         id: "impl-1",
         plan: IMPLEMENTATION_PLAN,
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 42,
       },
     });
@@ -224,7 +224,7 @@ describe("re-entered Guard mode hides the previous implementation handoff", () =
     createGuard()(mock.pi);
     const context = createMockContext({ hasUI: false });
     await mock.commands.get("guard")?.handler("", context.ctx);
-    const executeComplete = mock.tools.find((candidate) => candidate.name === "plan_mode_complete")
+    const executeComplete = mock.tools.find((candidate) => candidate.name === "guard_mode_complete")
       ?.execute as ((...args: unknown[]) => Promise<unknown>) | undefined;
     expect(executeComplete).toBeDefined();
     await executeComplete?.("complete", { plan: "# Plan Mode repro" }, undefined, undefined, context.ctx);
@@ -253,8 +253,8 @@ describe("re-entered Guard mode hides the previous implementation handoff", () =
     expect(mock.rawPi.getActiveTools()).toEqual([
       "bash",
       "read",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
 
     const activeMessages = [...implementationMessages, { role: "user", content: "continue" }];

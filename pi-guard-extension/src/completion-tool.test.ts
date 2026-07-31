@@ -3,7 +3,7 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import {
   PLAN_MODE_MAX_CHARS,
   PLAN_MODE_COMPLETE_VERSION,
-  PLAN_MODE_COMPLETE_TOOL_NAME,
+  GUARD_MODE_COMPLETE_TOOL_NAME,
   normalizePlanModeCompletion,
   planFromCompletionDetails,
   planModeCompleted,
@@ -55,7 +55,7 @@ describe("planFromCompletionDetails", () => {
   it("extracts a plan from valid completion details", () => {
     const details = {
       version: PLAN_MODE_COMPLETE_VERSION,
-      source: PLAN_MODE_COMPLETE_TOOL_NAME,
+      source: GUARD_MODE_COMPLETE_TOOL_NAME,
       plan: "# Plan",
     };
     expect(planFromCompletionDetails(details)).toBe("# Plan");
@@ -69,7 +69,7 @@ describe("planFromCompletionDetails", () => {
   it("returns undefined when version does not match", () => {
     const details = {
       version: 99,
-      source: PLAN_MODE_COMPLETE_TOOL_NAME,
+      source: GUARD_MODE_COMPLETE_TOOL_NAME,
       plan: "# Plan",
     };
     expect(planFromCompletionDetails(details)).toBeUndefined();
@@ -87,7 +87,7 @@ describe("planFromCompletionDetails", () => {
   it("returns undefined when plan is empty", () => {
     const details = {
       version: PLAN_MODE_COMPLETE_VERSION,
-      source: PLAN_MODE_COMPLETE_TOOL_NAME,
+      source: GUARD_MODE_COMPLETE_TOOL_NAME,
       plan: "   ",
     };
     expect(planFromCompletionDetails(details)).toBeUndefined();
@@ -106,7 +106,7 @@ describe("planModeCompleted", () => {
     const result = planModeCompleted("# Plan");
     expect(result.details).toEqual({
       version: PLAN_MODE_COMPLETE_VERSION,
-      source: PLAN_MODE_COMPLETE_TOOL_NAME,
+      source: GUARD_MODE_COMPLETE_TOOL_NAME,
       plan: "# Plan",
     });
   });
@@ -140,7 +140,7 @@ describe("planModeCompletionMarkdown", () => {
       content: [],
       details: {
         version: PLAN_MODE_COMPLETE_VERSION,
-        source: PLAN_MODE_COMPLETE_TOOL_NAME,
+        source: GUARD_MODE_COMPLETE_TOOL_NAME,
         plan: "# Plan",
       },
     });

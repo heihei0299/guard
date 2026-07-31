@@ -39,7 +39,7 @@ describe("updatePlanModeUi", () => {
         content: [
           "Guard mode: planning",
           "Tools: read, bash",
-          "Finish with plan_mode_complete when decision-ready.",
+          "Finish with guard_mode_complete when decision-ready.",
         ],
       },
     ])
@@ -75,7 +75,7 @@ describe("updatePlanModeUi", () => {
       activeImplementation: {
         id: "plan-1",
         plan: "# Plan",
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 1700000000000,
       },
     }
@@ -121,7 +121,7 @@ describe("planModeStatusText", () => {
   it("describes an active plan mode without a plan", () => {
     const state: PlanModeState = { enabled: true, awaitingAction: false }
     expect(planModeStatusText(state, toolSummary)).toContain("Guard mode is active")
-    expect(planModeStatusText(state, toolSummary)).toContain("plan_mode_complete")
+    expect(planModeStatusText(state, toolSummary)).toContain("guard_mode_complete")
   })
 
   it("describes a ready plan", () => {
@@ -136,7 +136,7 @@ describe("planModeStatusText", () => {
       activeImplementation: {
         id: "plan-1",
         plan: "# Plan",
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 1700000000000,
       },
     }

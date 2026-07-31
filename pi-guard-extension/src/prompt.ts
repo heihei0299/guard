@@ -94,8 +94,8 @@ function phaseImplementation(): string[] {
     "## Phase 3 — Implementation chat（阶段三：实现细节对话）",
     "",
     "- Once intent is stable, keep asking until the spec is decision-complete: approach, interfaces, data flow, edge cases/failure modes, testing and acceptance criteria, and any migration or compatibility constraints. / 意图稳定后，继续提问直到规格决策完整：方案、接口、数据流、边界情况/失败模式、测试与验收标准、以及任何迁移或兼容性约束。",
-    "- Use plan_mode_question for important preferences, tradeoffs, or assumption locks that cannot be discovered by non-mutating exploration. Ask 1-3 concise questions with 2-4 meaningful options. Do not include filler options. / 对无法通过非变更性探索发现的偏好、权衡或假设锁定，使用 plan_mode_question。每次提 1-3 个简洁问题，每个 2-4 个有意义选项，不要塞入凑数选项。",
-    "- If plan_mode_question returns cancelled or ui_unavailable, do not jump straight to a final plan when the missing answer is high impact. Ask one concise plain-text question or proceed only with a clearly stated low-risk assumption. / 如果 plan_mode_question 返回 cancelled 或 ui_unavailable，且缺失的答案影响重大，不要直接跳到最终计划。改用一句简洁的纯文本提问，或仅在明确声明低风险假设后继续。",
+    "- Use guard_mode_question for important preferences, tradeoffs, or assumption locks that cannot be discovered by non-mutating exploration. Ask 1-3 concise questions with 2-4 meaningful options. Do not include filler options. / 对无法通过非变更性探索发现的偏好、权衡或假设锁定，使用 guard_mode_question。每次提 1-3 个简洁问题，每个 2-4 个有意义选项，不要塞入凑数选项。",
+    "- If guard_mode_question returns cancelled or ui_unavailable, do not jump straight to a final plan when the missing answer is high impact. Ask one concise plain-text question or proceed only with a clearly stated low-risk assumption. / 如果 guard_mode_question 返回 cancelled 或 ui_unavailable，且缺失的答案影响重大，不要直接跳到最终计划。改用一句简洁的纯文本提问，或仅在明确声明低风险假设后继续。",
     "",
   ];
 }
@@ -105,12 +105,12 @@ function endingEachTurn(): string[] {
     "## Ending each turn（每轮结束）",
     "",
     "Every Guard Mode turn that advances or finalizes the plan must end in exactly one of these ways: / 每轮推进或定稿计划的守卫模式回合，必须以下列方式之一结束：",
-    "- If a material decision remains, use plan_mode_question. If interactive UI is unavailable, ask one concise plain-text question instead. / 若仍有重要决策，使用 plan_mode_question；若交互 UI 不可用，改为一句简洁的纯文本提问。",
-    "- If the implementation plan is decision-complete, call plan_mode_complete alone as your final action. Do not call other tools in the same batch and do not emit a normal assistant response after it. / 若实现计划已决策完整，单独调用 plan_mode_complete 作为最后动作。同一批次不要调用其他工具，调用后不要再输出普通回复。",
+    "- If a material decision remains, use guard_mode_question. If interactive UI is unavailable, ask one concise plain-text question instead. / 若仍有重要决策，使用 guard_mode_question；若交互 UI 不可用，改为一句简洁的纯文本提问。",
+    "- If the implementation plan is decision-complete, call guard_mode_complete alone as your final action. Do not call other tools in the same batch and do not emit a normal assistant response after it. / 若实现计划已决策完整，单独调用 guard_mode_complete 作为最后动作。同一批次不要调用其他工具，调用后不要再输出普通回复。",
     "",
-    "If a follow-up asks only for clarification and does not change or challenge the plan, answer it directly, then call plan_mode_complete alone as the final action with the complete unchanged plan so it remains available for implementation. / 如果后续提问仅要求澄清且不改变或质疑计划，直接回答，然后单独调用 plan_mode_complete 提交完整未变的计划，以便后续实现。",
+    "If a follow-up asks only for clarification and does not change or challenge the plan, answer it directly, then call guard_mode_complete alone as the final action with the complete unchanged plan so it remains available for implementation. / 如果后续提问仅要求澄清且不改变或质疑计划，直接回答，然后单独调用 guard_mode_complete 提交完整未变的计划，以便后续实现。",
     "",
-    "Never end with prose that merely announces you are about to present, write, or finalize the plan. Submit the actual plan with plan_mode_complete in that turn. / 绝不要以“我即将展示/撰写/定稿计划”之类的文字结尾。在本回合就用 plan_mode_complete 提交实际计划。",
+    "Never end with prose that merely announces you are about to present, write, or finalize the plan. Submit the actual plan with guard_mode_complete in that turn. / 绝不要以“我即将展示/撰写/定稿计划”之类的文字结尾。在本回合就用 guard_mode_complete 提交实际计划。",
     "",
   ];
 }
@@ -119,7 +119,7 @@ function completionRule(): string[] {
   return [
     "## Completion rule（完成规则）",
     "",
-    "Only call plan_mode_complete when the plan leaves no implementation decisions unresolved. Pass the complete plan as Markdown with: / 仅当计划不留任何未决实现决策时才调用 plan_mode_complete。以 Markdown 传入完整计划，包含：",
+    "Only call guard_mode_complete when the plan leaves no implementation decisions unresolved. Pass the complete plan as Markdown with: / 仅当计划不留任何未决实现决策时才调用 guard_mode_complete。以 Markdown 传入完整计划，包含：",
     "",
     "- A clear title / 清晰的标题",
     "- A brief summary / 简短摘要",
@@ -127,9 +127,9 @@ function completionRule(): string[] {
     "- Test cases and verification scenarios / 测试用例与验证场景",
     "- Explicit assumptions and defaults chosen where needed / 必要处显式说明选定的假设与默认值",
     "",
-    "Keep the plan concise, human and agent digestible, and free of open decisions. Prefer grouped behavior-level changes over file-by-file or symbol-by-symbol inventories. Do not ask \"should I proceed?\" — plan_mode_complete opens the Plan-ready flow. / 保持计划简洁、人类和代理都易读、无未决决策。优先按行为分组描述变更，而非逐文件/逐符号罗列。不要问“我是否继续？”——plan_mode_complete 会开启 plan-ready 流程。",
+    "Keep the plan concise, human and agent digestible, and free of open decisions. Prefer grouped behavior-level changes over file-by-file or symbol-by-symbol inventories. Do not ask \"should I proceed?\" — guard_mode_complete opens the Plan-ready flow. / 保持计划简洁、人类和代理都易读、无未决决策。优先按行为分组描述变更，而非逐文件/逐符号罗列。不要问“我是否继续？”——guard_mode_complete 会开启 plan-ready 流程。",
     "",
-    "If the user requests revisions after a completed plan, the next plan_mode_complete call must contain a complete replacement, not a delta. If there is not enough information for a complete replacement, continue planning with plan_mode_question instead of calling plan_mode_complete. / 若用户要求修改已完成计划，下一次 plan_mode_complete 必须提交完整替换版而非增量。若信息不足以产出完整替换版，改用 plan_mode_question 继续规划，不要调用 plan_mode_complete。",
+    "If the user requests revisions after a completed plan, the next guard_mode_complete call must contain a complete replacement, not a delta. If there is not enough information for a complete replacement, continue planning with guard_mode_question instead of calling guard_mode_complete. / 若用户要求修改已完成计划，下一次 guard_mode_complete 必须提交完整替换版而非增量。若信息不足以产出完整替换版，改用 guard_mode_question 继续规划，不要调用 guard_mode_complete。",
     "",
   ];
 }
@@ -151,8 +151,8 @@ function workflowSection(): string[] {
     "## Workflow（工作流程）",
     "",
     "1. Explore and understand the codebase / 探索并理解代码库",
-    "2. Ask questions using plan_mode_question if needed / 需要时用 plan_mode_question 提问",
-    "3. Submit your plan using plan_mode_complete / 用 plan_mode_complete 提交计划",
+    "2. Ask questions using guard_mode_question if needed / 需要时用 guard_mode_question 提问",
+    "3. Submit your plan using guard_mode_complete / 用 guard_mode_complete 提交计划",
     "4. Wait for the user to review and decide / 等待用户审查并决定",
     "",
   ];

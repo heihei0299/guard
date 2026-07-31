@@ -1,4 +1,4 @@
-import { PLAN_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts"
+import { GUARD_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts"
 import type { ActiveImplementationPlan } from "./state.ts"
 /**
  * Guard Plan Mode message transformation helpers.
@@ -116,7 +116,7 @@ export function stripProposedPlanBlocksFromMessage<T>(message: T): T {
 }
 
 /**
- * Remove `plan_mode_complete` tool-call blocks from assistant content.
+ * Remove `guard_mode_complete` tool-call blocks from assistant content.
  * Returns the original message when nothing changes.
  */
 export function stripPlanModeCompletionCallsFromMessage<T>(message: T): T {
@@ -124,7 +124,7 @@ export function stripPlanModeCompletionCallsFromMessage<T>(message: T): T {
     if (!Array.isArray(content)) return content
     const nextContent = content.filter((block) => {
       const candidate = block as { type?: string; name?: string }
-      return !(candidate.type === "toolCall" && candidate.name === PLAN_MODE_COMPLETE_TOOL_NAME)
+      return !(candidate.type === "toolCall" && candidate.name === GUARD_MODE_COMPLETE_TOOL_NAME)
     })
     return nextContent.length === content.length ? content : nextContent
   })
@@ -207,13 +207,13 @@ export function messageContainsPlanModeImplementationContextArtifact(message: un
 
 /**
  * Detect messages that are stale when Plan Mode is inactive:
- * proposed-plan custom messages and plan_mode_complete tool results.
+ * proposed-plan custom messages and guard_mode_complete tool results.
  */
 export function messageContainsInactivePlanModeArtifact(message: unknown) {
   const candidate = unwrapSessionMessage(message)
   return (
     candidate.customType === PROPOSED_PLAN_MESSAGE_TYPE ||
-    (candidate.role === "toolResult" && candidate.toolName === PLAN_MODE_COMPLETE_TOOL_NAME)
+    (candidate.role === "toolResult" && candidate.toolName === GUARD_MODE_COMPLETE_TOOL_NAME)
   )
 }
 

@@ -2,15 +2,15 @@
  * Guard Plan Mode required tools management.
  *
  * Manages the two mandatory Plan Mode tools:
- * - plan_mode_question: Ask structured questions during planning
- * - plan_mode_complete: Submit a completed plan for review
+ * - guard_mode_question: Ask structured questions during planning
+ * - guard_mode_complete: Submit a completed plan for review
  *
  * These tools must always be available while Plan Mode is active.
  */
 
 import { unique } from "./tool-selection.ts";
-import { PLAN_MODE_QUESTION_TOOL_NAME } from "./question-tool.ts";
-import { PLAN_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts";
+import { GUARD_MODE_QUESTION_TOOL_NAME } from "./question-tool.ts";
+import { GUARD_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts";
 
 /**
  * Ensure the Plan Mode required tools are present in a tool name array.
@@ -19,8 +19,8 @@ import { PLAN_MODE_COMPLETE_TOOL_NAME } from "./completion-tool.ts";
 export function withRequiredPlanModeTools(toolNames: string[]): string[] {
   return unique([
     ...withoutRequiredPlanModeTools(toolNames),
-    PLAN_MODE_QUESTION_TOOL_NAME,
-    PLAN_MODE_COMPLETE_TOOL_NAME,
+    GUARD_MODE_QUESTION_TOOL_NAME,
+    GUARD_MODE_COMPLETE_TOOL_NAME,
   ]);
 }
 
@@ -29,7 +29,7 @@ export function withRequiredPlanModeTools(toolNames: string[]): string[] {
  * The complete tool is preserved.
  */
 export function withoutPlanModeQuestionTool(toolNames: string[]): string[] {
-  return toolNames.filter((toolName) => toolName !== PLAN_MODE_QUESTION_TOOL_NAME);
+  return toolNames.filter((toolName) => toolName !== GUARD_MODE_QUESTION_TOOL_NAME);
 }
 
 /**
@@ -38,6 +38,6 @@ export function withoutPlanModeQuestionTool(toolNames: string[]): string[] {
 export function withoutRequiredPlanModeTools(toolNames: string[]): string[] {
   return toolNames.filter(
     (toolName) =>
-      toolName !== PLAN_MODE_QUESTION_TOOL_NAME && toolName !== PLAN_MODE_COMPLETE_TOOL_NAME,
+      toolName !== GUARD_MODE_QUESTION_TOOL_NAME && toolName !== GUARD_MODE_COMPLETE_TOOL_NAME,
   );
 }

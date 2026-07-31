@@ -5,8 +5,8 @@ import {
   withoutPlanModeQuestionTool,
 } from "./required-tools.ts";
 
-const Q = "plan_mode_question";
-const C = "plan_mode_complete";
+const Q = "guard_mode_question";
+const C = "guard_mode_complete";
 
 describe("withRequiredPlanModeTools", () => {
   it("adds question and complete tools to empty list", () => {

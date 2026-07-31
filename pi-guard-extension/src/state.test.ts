@@ -16,7 +16,7 @@ describe("PlanModeState", () => {
     const state: PlanModeState = {
       enabled: true,
       latestPlan: "Step 1: do X",
-      latestPlanSource: "plan_mode_complete",
+      latestPlanSource: "guard_mode_complete",
       awaitingAction: true,
     };
     expect(state.enabled).toBe(true);
@@ -31,7 +31,7 @@ describe("PlanModeState", () => {
       activeImplementation: {
         id: "abc-123",
         plan: "Implement X",
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 1000,
       },
     };
@@ -61,14 +61,14 @@ describe("restorePlanModeState", () => {
         data: {
           enabled: true,
           latestPlan: "My plan",
-          latestPlanSource: "plan_mode_complete",
+          latestPlanSource: "guard_mode_complete",
         },
       },
     ];
     const result = restorePlanModeState(entries, "guard_plan_mode_state");
     expect(result.enabled).toBe(true);
     expect(result.latestPlan).toBe("My plan");
-    expect(result.latestPlanSource).toBe("plan_mode_complete");
+    expect(result.latestPlanSource).toBe("guard_mode_complete");
     expect(result.awaitingAction).toBe(true);
   });
 
@@ -94,7 +94,7 @@ describe("restorePlanModeState", () => {
       {
         type: "custom",
         customType: "guard_plan_mode_state",
-        data: { enabled: true, latestPlan: "Latest plan", latestPlanSource: "plan_mode_complete" },
+        data: { enabled: true, latestPlan: "Latest plan", latestPlanSource: "guard_mode_complete" },
       },
     ];
     const result = restorePlanModeState(entries, "guard_plan_mode_state");
@@ -129,7 +129,7 @@ describe("restorePlanModeState", () => {
           activeImplementation: {
             id: "impl-1",
             plan: "Implement feature",
-            source: "plan_mode_complete",
+            source: "guard_mode_complete",
             startedAt: 5000,
           },
         },
@@ -152,7 +152,7 @@ describe("restorePlanModeState", () => {
           activeImplementation: {
             id: "impl-1",
             plan: "Implement feature",
-            source: "plan_mode_complete",
+            source: "guard_mode_complete",
             startedAt: 5000,
           },
         },
@@ -274,7 +274,7 @@ describe("restorePlanModeState restoration gaps", () => {
           enabled: true,
           awaitingAction: true,
           latestPlan: "  # Plan  ",
-          latestPlanSource: "plan_mode_complete",
+          latestPlanSource: "guard_mode_complete",
         }),
       ],
       "guard_plan_mode_state",
@@ -289,7 +289,7 @@ describe("restorePlanModeState restoration gaps", () => {
           enabled: true,
           awaitingAction: true,
           latestPlan: "x".repeat(PLAN_MODE_MAX_CHARS + 1),
-          latestPlanSource: "plan_mode_complete",
+          latestPlanSource: "guard_mode_complete",
         }),
       ],
       "guard_plan_mode_state",
@@ -306,7 +306,7 @@ describe("restorePlanModeState restoration gaps", () => {
           enabled: true,
           awaitingAction: true,
           latestPlan: " \n ",
-          latestPlanSource: "plan_mode_complete",
+          latestPlanSource: "guard_mode_complete",
         }),
       ],
       "guard_plan_mode_state",
@@ -322,7 +322,7 @@ describe("restorePlanModeState restoration gaps", () => {
           enabled: true,
           awaitingAction: true,
           latestPlan: "x".repeat(PLAN_MODE_MAX_CHARS),
-          latestPlanSource: "plan_mode_complete",
+          latestPlanSource: "guard_mode_complete",
         }),
       ],
       "guard_plan_mode_state",
@@ -340,7 +340,7 @@ describe("restorePlanModeState restoration gaps", () => {
           activeImplementation: {
             id: "impl-1",
             plan: "x".repeat(PLAN_MODE_MAX_CHARS + 1),
-            source: "plan_mode_complete",
+            source: "guard_mode_complete",
             startedAt: 5000,
           },
         }),

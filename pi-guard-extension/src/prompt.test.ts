@@ -14,7 +14,7 @@ describe("buildPlanModePrompt", () => {
     const state: PlanModeState = {
       enabled: true,
       latestPlan: "My plan",
-      latestPlanSource: "plan_mode_complete",
+      latestPlanSource: "guard_mode_complete",
       awaitingAction: true,
     };
     const prompt = buildPlanModePrompt(state);
@@ -29,7 +29,7 @@ describe("buildPlanModePrompt", () => {
       activeImplementation: {
         id: "impl-1",
         plan: "Implement X",
-        source: "plan_mode_complete",
+        source: "guard_mode_complete",
         startedAt: 1000,
       },
     };
@@ -66,11 +66,11 @@ describe("buildPlanModePrompt", () => {
     expect(prompt).toContain("Mode rules");
   });
 
-  it("states the completion rule and references plan_mode_complete", () => {
+  it("states the completion rule and references guard_mode_complete", () => {
     const state: PlanModeState = { enabled: true, awaitingAction: false };
     const prompt = buildPlanModePrompt(state);
     expect(prompt).toContain("Completion rule");
-    expect(prompt).toContain("plan_mode_complete");
+    expect(prompt).toContain("guard_mode_complete");
   });
 
   it("is bilingual: includes both English and Chinese guidance", () => {

@@ -12,7 +12,7 @@ import {
   settingsLoader,
 } from "./test-support.ts";
 
-const REQUIRED_PLAN_TOOLS = ["plan_mode_question", "plan_mode_complete"];
+const REQUIRED_PLAN_TOOLS = ["guard_mode_question", "guard_mode_complete"];
 
 describe("default plan tools", () => {
   it("uses configured default tools on entry and restores the previous tools on exit", async () => {
@@ -144,7 +144,7 @@ describe("default plan tools", () => {
         enabled: true,
         awaitingAction: true,
         latestPlan: "# Active branch",
-        latestPlanSource: "plan_mode_complete",
+        latestPlanSource: "guard_mode_complete",
       }),
     ];
     const mock = createMockPi({ activeTools: ["read"], allTools: [builtinTool("read")] });
@@ -238,7 +238,7 @@ mock.pi);
     await mock.commands.get("guard")?.handler("", context.ctx);
     expect(mock.rawPi.getActiveTools()).toEqual(["bash", ...REQUIRED_PLAN_TOOLS]);
 
-    const execute = mock.tools.find((tool) => tool.name === "plan_mode_complete")?.execute as
+    const execute = mock.tools.find((tool) => tool.name === "guard_mode_complete")?.execute as
       | ((...args: unknown[]) => Promise<unknown>)
       | undefined;
     expect(execute).toBeDefined();

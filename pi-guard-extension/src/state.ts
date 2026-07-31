@@ -12,7 +12,7 @@ import {
   type PlanModeThinkingLevel,
 } from "./settings.ts";
 
-export type PlanCompletionSource = "plan_mode_complete" | "legacy_proposed_plan";
+export type PlanCompletionSource = "guard_mode_complete" | "legacy_proposed_plan";
 
 export interface ActiveImplementationPlan {
   id: string;
@@ -141,7 +141,7 @@ function normalizePersistedPlan(value: unknown): string | undefined {
 }
 
 function planCompletionSource(value: unknown): PlanCompletionSource | undefined {
-  return value === "plan_mode_complete" || value === "legacy_proposed_plan"
+  return value === "guard_mode_complete" || value === "legacy_proposed_plan"
     ? (value as PlanCompletionSource)
     : undefined;
 }

@@ -28,8 +28,8 @@ describe("subagent allowlist integration", () => {
     expect(mock.rawPi.getActiveTools()).toEqual([
       "subagent",
       "subagent_spawn",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
 
     expect(

@@ -8,7 +8,7 @@ type MockToolWithExecute = {
 
 function completionTool(mock: ReturnType<typeof createMockPi>) {
   return mock.tools.find(
-    (candidate) => candidate.name === "plan_mode_complete",
+    (candidate) => candidate.name === "guard_mode_complete",
   ) as MockToolWithExecute | undefined;
 }
 
@@ -24,8 +24,8 @@ describe("createGuard assembly", () => {
 
     expect(mock.flags.has("guard")).toBe(true);
     expect(mock.tools.map((tool) => tool.name)).toEqual([
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
     expect(mock.commands.has("guard")).toBe(true);
     expect(typeof mock.commands.get("guard")?.getArgumentCompletions).toBe("function");
@@ -63,8 +63,8 @@ describe("/guard command", () => {
     expect(mock.rawPi.getActiveTools()).toEqual([
       "bash",
       "read",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
     expect(context.notifications.at(-1)?.message).toMatch(/Guard mode enabled/);
     expect(context.notifications.at(-1)?.message).not.toMatch(/Plan mode/);
@@ -136,7 +136,7 @@ describe("/guard command", () => {
 
     await mock.commands.get("guard")?.handler("", context.ctx);
     await mock.commands.get("guard")?.handler("finalize", context.ctx);
-    expect(mock.sentUserMessages.at(-1)?.text).toMatch(/plan_mode_complete/);
+    expect(mock.sentUserMessages.at(-1)?.text).toMatch(/guard_mode_complete/);
   });
 
   it("show without a stored plan rejects in non-UI modes without sending a message", async () => {
@@ -181,7 +181,7 @@ describe("/guard command menus", () => {
   });
 });
 
-describe("plan_mode_complete tool", () => {
+describe("guard_mode_complete tool", () => {
   it("stores a valid plan and enters the ready state", async () => {
     const mock = createMockPi({ activeTools: ["read", "bash"] });
     createGuard()(mock.pi);
@@ -271,8 +271,8 @@ describe("session_start", () => {
     expect(context.statuses.get("plan-mode")).toBe("plan ready");
     expect(mock.rawPi.getActiveTools()).toEqual([
       "read",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
   });
 
@@ -346,16 +346,16 @@ describe("context filtering", () => {
     role: "assistant",
     content: [
       { type: "text", text: "keep explanation" },
-      { type: "toolCall", id: "plan-call", name: "plan_mode_complete", arguments: {} },
+      { type: "toolCall", id: "plan-call", name: "guard_mode_complete", arguments: {} },
       { type: "toolCall", id: "read-call", name: "read", arguments: {} },
     ],
   };
   const completionResult = {
     role: "toolResult",
     toolCallId: "plan-call",
-    toolName: "plan_mode_complete",
+    toolName: "guard_mode_complete",
     content: [{ type: "text", text: "**Proposed Plan**\n\n# Discarded" }],
-    details: { version: 1, source: "plan_mode_complete", plan: "# Discarded" },
+    details: { version: 1, source: "guard_mode_complete", plan: "# Discarded" },
   };
   const unrelatedResult = {
     role: "toolResult",
@@ -678,7 +678,7 @@ describe("before_agent_start", () => {
     expect(context.statuses.get("plan-mode")).toBe("plan active");
     expect(result.systemPrompt).toContain("base");
     expect(result.systemPrompt).toMatch(/Guard Mode（守卫模式）/);
-    expect(result.systemPrompt).toMatch(/plan_mode_complete/);
+    expect(result.systemPrompt).toMatch(/guard_mode_complete/);
   });
 
   it("does not inject the Guard mode prompt while inactive", async () => {
@@ -900,7 +900,7 @@ describe("delivery failures", () => {
 
     await mock.commands.get("guard")?.handler("", context.ctx);
     await mock.commands.get("guard")?.handler("finalize", context.ctx);
-    expect(mock.sentUserMessages.at(-1)?.text ?? "").toMatch(/plan_mode_complete/);
+    expect(mock.sentUserMessages.at(-1)?.text ?? "").toMatch(/guard_mode_complete/);
     expect(mock.sentUserMessages.at(-1)?.options).toBeUndefined();
 
     idle = false;
@@ -953,8 +953,8 @@ describe("delivery failures", () => {
     expect(mock.rawPi.getActiveTools()).toEqual([
       "bash",
       "read",
-      "plan_mode_question",
-      "plan_mode_complete",
+      "guard_mode_question",
+      "guard_mode_complete",
     ]);
     expect((mock.entries.at(-1)?.data as { latestPlan?: string }).latestPlan).toBe("# Ready again");
   });

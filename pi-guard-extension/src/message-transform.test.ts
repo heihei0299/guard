@@ -106,7 +106,7 @@ describe("stripPlanModeCompletionCallsFromMessage", () => {
       role: "assistant",
       content: [
         { type: "text", text: "keep explanation" },
-        { type: "toolCall", id: "plan-call", name: "plan_mode_complete", arguments: {} },
+        { type: "toolCall", id: "plan-call", name: "guard_mode_complete", arguments: {} },
         { type: "toolCall", id: "read-call", name: "read", arguments: {} },
       ],
     }
@@ -150,11 +150,11 @@ describe("messageContainsInactivePlanModeArtifact", () => {
     ).toBe(true)
   })
 
-  it("detects plan_mode_complete tool results", () => {
+  it("detects guard_mode_complete tool results", () => {
     expect(
       messageContainsInactivePlanModeArtifact({
         role: "toolResult",
-        toolName: "plan_mode_complete",
+        toolName: "guard_mode_complete",
       }),
     ).toBe(true)
   })
@@ -234,7 +234,7 @@ describe("injectActiveImplementationContext", () => {
   const activeImplementation = {
     id: "plan-1",
     plan: "# Approved plan",
-    source: "plan_mode_complete" as const,
+    source: "guard_mode_complete" as const,
     startedAt: 1700000000000,
   }
 

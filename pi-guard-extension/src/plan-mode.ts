@@ -2,7 +2,7 @@
  * Guard Mode — core orchestration module.
  *
  * Assembles every Guard Mode module into a pi extension: registers the
- * `--guard` startup flag, the `plan_mode_question` / `plan_mode_complete`
+ * `--guard` startup flag, the `guard_mode_question` / `guard_mode_complete`
  * tools, the `/guard` command, and the event hooks that enforce Guard
  * mode across the session lifecycle.
  *
@@ -17,7 +17,7 @@ import { completePlanArguments } from "./command.ts";
 import {
   normalizePlanModeCompletion,
   PLAN_MODE_COMPLETE_PARAMS,
-  PLAN_MODE_COMPLETE_TOOL_NAME,
+  GUARD_MODE_COMPLETE_TOOL_NAME,
   planModeCompleted,
   renderPlanModeCompletion,
 } from "./completion-tool.ts";
@@ -50,7 +50,7 @@ import {
   answerPlanModeQuestions,
   normalizePlanModeQuestionParams,
   PLAN_MODE_QUESTION_PARAMS,
-  PLAN_MODE_QUESTION_TOOL_NAME,
+  GUARD_MODE_QUESTION_TOOL_NAME,
   planModeQuestionCancelled,
 } from "./question-tool.ts";
 import { withoutRequiredPlanModeTools, withRequiredPlanModeTools } from "./required-tools.ts";
@@ -119,13 +119,13 @@ export function createGuard(options: GuardExtensionOptions = {}) {
     });
 
     pi.registerTool({
-      name: PLAN_MODE_QUESTION_TOOL_NAME,
+      name: GUARD_MODE_QUESTION_TOOL_NAME,
       label: "Plan question",
       description:
         "Ask the user one to three Guard-mode clarification questions with meaningful options, then wait for the answer. Only available while Guard mode is active.",
       promptSnippet: "Ask user decision questions while Guard mode is active",
       promptGuidelines: [
-        "In Guard mode, use plan_mode_question for important preferences, tradeoffs, or assumptions that cannot be discovered from read-only exploration.",
+        "In Guard mode, use guard_mode_question for important preferences, tradeoffs, or assumptions that cannot be discovered from read-only exploration.",
       ],
       parameters: PLAN_MODE_QUESTION_PARAMS,
       async execute(_toolCallId, params: unknown, _signal, _onUpdate, ctx) {
@@ -133,7 +133,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
           return planModeQuestionCancelled(
             [],
             "plan_mode_inactive",
-            "Error: plan_mode_question is only available while Guard mode is active.",
+            "Error: guard_mode_question is only available while Guard mode is active.",
           );
         }
 
@@ -162,24 +162,24 @@ export function createGuard(options: GuardExtensionOptions = {}) {
     });
 
     pi.registerTool({
-      name: PLAN_MODE_COMPLETE_TOOL_NAME,
+      name: GUARD_MODE_COMPLETE_TOOL_NAME,
       label: "Complete plan",
       description:
         "Submit the complete decision-ready implementation plan for user review. Only available while Guard mode is active, and must be the final standalone action.",
       promptSnippet: "Submit the final Guard-mode implementation plan",
       promptGuidelines: [
-        "Call plan_mode_complete alone as the final action only after the implementation plan is decision-complete.",
+        "Call guard_mode_complete alone as the final action only after the implementation plan is decision-complete.",
       ],
       parameters: PLAN_MODE_COMPLETE_PARAMS,
       renderResult: renderPlanModeCompletion,
       async execute(_toolCallId, params: unknown, _signal, _onUpdate, ctx) {
         if (!state.enabled) {
-          throw new Error("plan_mode_complete is only available while Guard mode is active");
+          throw new Error("guard_mode_complete is only available while Guard mode is active");
         }
         const parsed = normalizePlanModeCompletion(params);
         if (!parsed.ok) throw new Error(parsed.error);
 
-        acceptCompletedPlan(parsed.plan, PLAN_MODE_COMPLETE_TOOL_NAME, ctx);
+        acceptCompletedPlan(parsed.plan, GUARD_MODE_COMPLETE_TOOL_NAME, ctx);
         return planModeCompleted(parsed.plan);
       },
     });
@@ -586,7 +586,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
         return;
       }
       sendPlanModeUserMessage(
-        "Finalize the current implementation plan now. If any material decision remains, use plan_mode_question instead. Otherwise call plan_mode_complete alone as your final action with the complete decision-ready plan.",
+        "Finalize the current implementation plan now. If any material decision remains, use guard_mode_question instead. Otherwise call guard_mode_complete alone as your final action with the complete decision-ready plan.",
         ctx,
       );
     }
@@ -812,7 +812,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
         state.selectedToolNames === undefined &&
         settings.defaultPlanTools === undefined
       ) {
-        return ["read", "bash", PLAN_MODE_QUESTION_TOOL_NAME, PLAN_MODE_COMPLETE_TOOL_NAME];
+        return ["read", "bash", GUARD_MODE_QUESTION_TOOL_NAME, GUARD_MODE_COMPLETE_TOOL_NAME];
       }
 
       const selectedNames = resolvePlanModeSelectedNames(tools);
@@ -857,7 +857,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
       return safeGetAllTools()
         .filter(
           (tool) =>
-            tool.name !== PLAN_MODE_QUESTION_TOOL_NAME && tool.name !== PLAN_MODE_COMPLETE_TOOL_NAME,
+            tool.name !== GUARD_MODE_QUESTION_TOOL_NAME && tool.name !== GUARD_MODE_COMPLETE_TOOL_NAME,
         )
         .sort(compareTools);
     }
