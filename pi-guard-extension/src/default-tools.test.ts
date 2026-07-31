@@ -260,6 +260,14 @@ describe("host-added tool visibility", () => {
     // 用户在 /guard tools 里先勾选再取消 write
     await mock.commands.get("guard")?.handler("tools", context.ctx);
     expect(mock.rawPi.getActiveTools()).not.toContain("write");
+
+    // 宿主重广播活动集（模拟宿主 UI 状态刷新）——veto 应阻止 write 复活
+    mock.rawPi.setActiveTools(["read", "bash", "write", ...REQUIRED_PLAN_TOOLS]);
+    await mock.events.get("before_agent_start")?.[0]?.(
+      { systemPrompt: "base", prompt: "continue", systemPromptOptions: {} },
+      context.ctx,
+    );
+    expect(mock.rawPi.getActiveTools()).not.toContain("write");
   });
 
   it("does not merge a user tool that shares the name write", async () => {

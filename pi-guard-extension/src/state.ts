@@ -31,6 +31,8 @@ export interface PlanModeState {
   awaitingAction: boolean;
   activeImplementation?: ActiveImplementationPlan;
   selectedToolNames?: string[];
+  /** Allowlisted tools the user explicitly deselected in /guard tools. */
+  vetoedToolNames?: string[];
   previousThinkingLevel?: string;
   appliedThinkingLevel?: string;
   manualThinkingLevel?: string;
@@ -109,6 +111,7 @@ export function restorePlanModeState(
     awaitingAction: enabled && latestPlanOrUndefined !== undefined,
     activeImplementation,
     selectedToolNames: stringArray(entry.data.selectedToolNames),
+    vetoedToolNames: stringArray(entry.data.vetoedToolNames),
     previousThinkingLevel: enabled
       ? fixedThinkingLevel(entry.data.previousThinkingLevel)
       : undefined,

@@ -761,13 +761,16 @@ export function createGuard(options: GuardExtensionOptions = {}) {
             const tool = toolById.get(itemId);
             if (!tool || !canSelectToolInPlanMode(tool)) return { kind: "rejected" };
             const names = resolvePlanModeSelectedNames(tools);
-            if (selected) names.add(tool.name);
-            else {
+            const vetoed = new Set(state.vetoedToolNames ?? []);
+            if (selected) {
+              names.add(tool.name);
+              vetoed.delete(tool.name);
+            } else {
               names.delete(tool.name);
-              // 用户显式取消 allowlisted 工具（如 write）：同时从宿主活动集
-              // 移除，否则 applyPlanModeTools 的合并逻辑会把它重新注入，
-              // 导致宿主激活的 write 永远无法被取消。
-              // 条件与 isAllowlistedToolName 对齐：仅内置 allowlisted 工具。
+              // 用户显式取消 allowlisted 工具（如 write）：从宿主活动集移除
+              // 并记入 veto 集合，防止 applyPlanModeTools 每轮重新注入或
+              // 宿主重广播活动集时复活。条件与 isAllowlistedToolName 对齐：
+              // 仅内置 allowlisted 工具需要 veto（其余本来就不会被合并）。
               if (
                 ALLOWLISTED_BUILTIN_TOOLS.has(tool.name) &&
                 isBuiltinTool(tool)
@@ -775,11 +778,14 @@ export function createGuard(options: GuardExtensionOptions = {}) {
                 pi.setActiveTools(
                   safeGetActiveTools().filter((name) => name !== tool.name),
                 );
+                vetoed.add(tool.name);
               }
             }
             state = {
               ...state,
               selectedToolNames: filterAvailableSelectedNames(Array.from(names), tools),
+              vetoedToolNames:
+                vetoed.size > 0 ? Array.from(vetoed) : undefined,
             };
             applyPlanModeTools();
             persistState();
@@ -825,9 +831,14 @@ export function createGuard(options: GuardExtensionOptions = {}) {
       // would silently drop a host-activated write tool every turn.
       // Tools already active before entering Guard mode are excluded — they
       // are restored from previousTools on exit and must not leak into the
-      // planned set.
+      // planned set. Tools the user vetoed in /guard tools are excluded too,
+      // so a host re-broadcast of the active set cannot resurrect them.
+      const vetoed = new Set(state.vetoedToolNames ?? []);
       const hostAllowlisted = safeGetActiveTools().filter(
-        (name) => !previousTools?.includes(name) && isAllowlistedToolName(name),
+        (name) =>
+          !previousTools?.includes(name) &&
+          !vetoed.has(name) &&
+          isAllowlistedToolName(name),
       );
       pi.setActiveTools(unique([...planned, ...hostAllowlisted]));
     }
