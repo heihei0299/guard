@@ -72,6 +72,81 @@ describe("restorePlanModeState", () => {
     expect(result.awaitingAction).toBe(true);
   });
 
+  it("restores latestPlan from a legacy plan_mode_complete source", () => {
+    const entries = [
+      {
+        type: "custom",
+        customType: "guard_plan_mode_state",
+        data: {
+          enabled: true,
+          latestPlan: "Pre-rename plan",
+          latestPlanSource: "plan_mode_complete",
+        },
+      },
+    ];
+    const result = restorePlanModeState(entries, "guard_plan_mode_state");
+    expect(result.enabled).toBe(true);
+    expect(result.latestPlan).toBe("Pre-rename plan");
+    expect(result.latestPlanSource).toBe("plan_mode_complete");
+    expect(result.awaitingAction).toBe(true);
+  });
+
+  it("restores latestPlan from a legacy_proposed_plan source", () => {
+    const entries = [
+      {
+        type: "custom",
+        customType: "guard_plan_mode_state",
+        data: {
+          enabled: true,
+          latestPlan: "Legacy proposed plan",
+          latestPlanSource: "legacy_proposed_plan",
+        },
+      },
+    ];
+    const result = restorePlanModeState(entries, "guard_plan_mode_state");
+    expect(result.enabled).toBe(true);
+    expect(result.latestPlan).toBe("Legacy proposed plan");
+    expect(result.latestPlanSource).toBe("legacy_proposed_plan");
+    expect(result.awaitingAction).toBe(true);
+  });
+
+  it("fails closed on an unknown latestPlanSource", () => {
+    const entries = [
+      {
+        type: "custom",
+        customType: "guard_plan_mode_state",
+        data: {
+          enabled: true,
+          latestPlan: "Plan with unknown source",
+          latestPlanSource: "some_future_source",
+        },
+      },
+    ];
+    const result = restorePlanModeState(entries, "guard_plan_mode_state");
+    expect(result.enabled).toBe(true);
+    expect(result.latestPlan).toBeUndefined();
+    expect(result.latestPlanSource).toBeUndefined();
+    expect(result.awaitingAction).toBe(false);
+  });
+
+  it("restores latestPlan when the source field is missing (oldest format)", () => {
+    const entries = [
+      {
+        type: "custom",
+        customType: "guard_plan_mode_state",
+        data: {
+          enabled: true,
+          latestPlan: "Oldest-format plan",
+        },
+      },
+    ];
+    const result = restorePlanModeState(entries, "guard_plan_mode_state");
+    expect(result.enabled).toBe(true);
+    expect(result.latestPlan).toBe("Oldest-format plan");
+    expect(result.latestPlanSource).toBeUndefined();
+    expect(result.awaitingAction).toBe(true);
+  });
+
   it("returns disabled state when entry has no data", () => {
     const entries = [
       {
@@ -140,6 +215,30 @@ describe("restorePlanModeState", () => {
     expect(result.activeImplementation).toBeDefined();
     expect(result.activeImplementation!.id).toBe("impl-1");
     expect(result.activeImplementation!.plan).toBe("Implement feature");
+  });
+
+  it("restores activeImplementation from a legacy plan_mode_complete source", () => {
+    const entries = [
+      {
+        type: "custom",
+        customType: "guard_plan_mode_state",
+        data: {
+          enabled: false,
+          activeImplementation: {
+            id: "impl-old",
+            plan: "Pre-rename implementation",
+            source: "plan_mode_complete",
+            startedAt: 5000,
+          },
+        },
+      },
+    ];
+    const result = restorePlanModeState(entries, "guard_plan_mode_state");
+    expect(result.enabled).toBe(false);
+    expect(result.activeImplementation).toBeDefined();
+    expect(result.activeImplementation!.id).toBe("impl-old");
+    expect(result.activeImplementation!.plan).toBe("Pre-rename implementation");
+    expect(result.activeImplementation!.source).toBe("plan_mode_complete");
   });
 
   it("ignores activeImplementation when enabled is true", () => {

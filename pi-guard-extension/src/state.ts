@@ -12,7 +12,10 @@ import {
   type PlanModeThinkingLevel,
 } from "./settings.ts";
 
-export type PlanCompletionSource = "guard_mode_complete" | "legacy_proposed_plan";
+export type PlanCompletionSource =
+  | "guard_mode_complete"
+  | "plan_mode_complete"
+  | "legacy_proposed_plan";
 
 export interface ActiveImplementationPlan {
   id: string;
@@ -81,12 +84,18 @@ export function restorePlanModeState(
 
   const enabled = entry.data.enabled === true;
 
-  // Only restore latestPlan/latestPlanSource when enabled
+  // Fail closed on an unknown source, but tolerate a missing source field:
+  // entries without latestPlanSource are the oldest session format, where the
+  // runtime falls back to legacy_proposed_plan (see startImplementation).
   const latestPlan = enabled ? normalizePersistedPlan(entry.data.latestPlan) : undefined;
+  const rawSource = entry.data.latestPlanSource;
+  const unknownSource =
+    rawSource !== undefined && planCompletionSource(rawSource) === undefined;
   const latestPlanSource: PlanCompletionSource | undefined =
-    enabled && latestPlan !== undefined
-      ? planCompletionSource(entry.data.latestPlanSource)
+    enabled && latestPlan !== undefined && !unknownSource
+      ? planCompletionSource(rawSource)
       : undefined;
+  const latestPlanOrUndefined = unknownSource ? undefined : latestPlan;
 
   // Only restore activeImplementation when NOT enabled
   const activeImplementation = enabled
@@ -95,9 +104,9 @@ export function restorePlanModeState(
 
   return {
     enabled,
-    latestPlan,
+    latestPlan: latestPlanOrUndefined,
     latestPlanSource,
-    awaitingAction: enabled && latestPlan !== undefined,
+    awaitingAction: enabled && latestPlanOrUndefined !== undefined,
     activeImplementation,
     selectedToolNames: stringArray(entry.data.selectedToolNames),
     previousThinkingLevel: enabled
@@ -141,7 +150,9 @@ function normalizePersistedPlan(value: unknown): string | undefined {
 }
 
 function planCompletionSource(value: unknown): PlanCompletionSource | undefined {
-  return value === "guard_mode_complete" || value === "legacy_proposed_plan"
+  return value === "guard_mode_complete" ||
+    value === "plan_mode_complete" ||
+    value === "legacy_proposed_plan"
     ? (value as PlanCompletionSource)
     : undefined;
 }
