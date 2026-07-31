@@ -1,0 +1,39 @@
+# Guard → Plan Mode（含路径白名单）
+
+将原 Guard 扩展改造为 Guard Mode（Plan Mode）+ 路径白名单的混合模式：
+- Guard Mode 激活时，写操作（write/replace）**仅允许**白名单路径（`.scratch/`、`docs/`、`CONTEXT.md`），其余拦截
+- Guard Mode 提供 `/guard` 命令、`plan_mode_question`/`plan_mode_complete` 工具、bash 安全策略
+- 目标：适配 Matt 技能组，wayfinder 可创建 tickets，domain-modeling 可写 ADRs，同时防止 src/ 等路径被乱写
+
+## Destination
+
+将 guard 扩展改造为 guard-mode 扩展，代码写完、测试通过、类型检查通过，不发布到 npm。
+
+## Notes
+
+- 包名保持 `pi-guard-extension`，原地改造
+- 完全移除旧命令 `/guard-start`、`/guard:allow`，改为 `/guard` 系列命令
+- 不迁移旧配置，用户重新配置 `~/.pi/agent/pi-guard.json`
+- 消息用中英双语
+- 参考实现：`/home/shial/Project/Pi/guard/pi-extensions/extensions/pi-plan-mode/`
+- 每个 ticket 一个会话，按 wayfinder 流程逐个解决
+- **Guard Mode 含路径白名单**：`.scratch/`、`docs/`、`CONTEXT.md` 在 Guard Mode 中可写
+  - wayfinder 创建 `.scratch/` 下的 tickets 和 map
+  - domain-modeling 创建 `docs/adr/` ADRs 和更新 `CONTEXT.md`
+  - 其他路径（`src/`、`package.json`、`lib/` 等）仍被拦截
+
+## Decisions so far
+
+- **Ticket 02 (core logic) resolved** — 工具策略分类 / bash 安全 / 路径白名单 / 状态管理已实现。Commit `73dbab6`。详见 `issues/02-core-logic.md`
+- **Ticket 03 (plan submission tools) resolved** — `plan_mode_question` / `plan_mode_complete` 工具 + 双语 system prompt 已实现；`buildPlanModePrompt` 迁至 `prompt.ts`；`prompt-injector` 已删除。Commit `aa710ec`。详见 `issues/03-plan-submission-tools.md`
+
+## Not yet specified
+
+<!-- 暂无 -->
+
+## Out of scope
+
+- npm 发布
+- 旧配置自动迁移
+- `/guard-start` / `/guard:allow` 兼容别名
+- pi-permission-system 集成
