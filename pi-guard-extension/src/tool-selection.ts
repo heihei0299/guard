@@ -10,11 +10,13 @@ export function unique(values: string[]): string[] {
 /**
  * Check whether a tool is a built-in pi tool.
  *
- * Built-in tools are those shipped with pi (source === "pi").
- * User/custom tools have source === "user" or source === "project".
+ * Built-in tools are those shipped with pi. The host reports them with
+ * source === "pi" (older mock fixtures) or source === "builtin" / "sdk"
+ * (pi-coding-agent's synthetic source info). User/custom tools have
+ * source === "extension" or other custom sources.
  */
 export function isBuiltinTool(tool: ToolInfo): boolean {
-  return tool.sourceInfo?.source === "pi";
+  return tool.sourceInfo?.source === "pi" || tool.sourceInfo?.source === "builtin" || tool.sourceInfo?.source === "sdk";
 }
 
 /**

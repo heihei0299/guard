@@ -65,6 +65,7 @@ import {
 import { type PlanCompletionSource, type PlanModeState, restorePlanModeState } from "./state.ts";
 import { enforcePlanSubagentAllowlist } from "./subagent-policy.ts";
 import {
+  ALLOWLISTED_BUILTIN_TOOLS,
   BLOCKED_BUILTIN_TOOLS,
   classifyPlanModeTool,
   DEFAULT_ALLOW_WRITE_PATHS,
@@ -804,7 +805,23 @@ export function createGuard(options: GuardExtensionOptions = {}) {
     }
 
     function applyPlanModeTools() {
-      pi.setActiveTools(planModeToolNames());
+      const planned = planModeToolNames();
+      // Preserve allowlisted tools the host/user activated (e.g. write,
+      // replace) on top of the planned set: without this, before_agent_start
+      // would silently drop a host-activated write tool every turn.
+      // Tools already active before entering Guard mode are excluded — they
+      // are restored from previousTools on exit and must not leak into the
+      // planned set.
+      const hostAllowlisted = safeGetActiveTools().filter(
+        (name) => !previousTools?.includes(name) && isAllowlistedToolName(name),
+      );
+      pi.setActiveTools(unique([...planned, ...hostAllowlisted]));
+    }
+
+    function isAllowlistedToolName(name: string) {
+      if (!ALLOWLISTED_BUILTIN_TOOLS.has(name)) return false;
+      const tool = toolByName(name);
+      return tool !== undefined ? canSelectToolInPlanMode(tool) : false;
     }
 
     function planModeToolNames() {

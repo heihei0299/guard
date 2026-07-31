@@ -169,6 +169,63 @@ describe("default plan tools", () => {
   });
 });
 
+describe("host-added tool visibility", () => {
+  it("activates built-in tools when the host reports source \"builtin\"", async () => {
+    // 真实宿主（pi-coding-agent）中内置工具 sourceInfo.source === "builtin"，
+    // 而非 guard 测试 mock 里的 "pi"。
+    const mock = createMockPi({
+      activeTools: ["read", "bash", "write", "grep", "find", "ls"],
+      allTools: [
+        { name: "read", sourceInfo: { source: "builtin" } },
+        { name: "bash", sourceInfo: { source: "builtin" } },
+        { name: "write", sourceInfo: { source: "builtin" } },
+        { name: "grep", sourceInfo: { source: "builtin" } },
+        { name: "find", sourceInfo: { source: "builtin" } },
+        { name: "ls", sourceInfo: { source: "builtin" } },
+      ],
+    });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+
+    // 默认工具集应包含只读内置工具 + 必需工具，而不是只剩 guard 两个工具
+    expect(mock.rawPi.getActiveTools()).toEqual(
+      expect.arrayContaining(["read", "bash", "grep", "find", "ls", ...REQUIRED_PLAN_TOOLS]),
+    );
+  });
+
+  it("keeps a host-activated write tool visible across before_agent_start", async () => {
+    const mock = createMockPi({
+      activeTools: ["read", "bash"],
+      allTools: [
+        builtinTool("read"),
+        builtinTool("bash"),
+        builtinTool("write"),
+        builtinTool("grep"),
+        builtinTool("find"),
+        builtinTool("ls"),
+      ],
+    });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+
+    // 用户在 Guard 模式内通过宿主 UI 激活 write（宿主 setActiveTools 生效）
+    mock.rawPi.setActiveTools(["read", "bash", "write", ...REQUIRED_PLAN_TOOLS]);
+    expect(mock.rawPi.getActiveTools()).toContain("write");
+
+    // 下一轮 agent 开始——guard 不应把宿主激活的 write 顶掉
+    await mock.events.get("before_agent_start")?.[0]?.(
+      { systemPrompt: "base", prompt: "continue", systemPromptOptions: {} },
+      context.ctx,
+    );
+
+    expect(mock.rawPi.getActiveTools()).toContain("write");
+  });
+});
+
 describe("restored tool selections", () => {
   function resumedMock(data: Record<string, unknown>, settings: Record<string, unknown>) {
     const mock = createMockPi({
