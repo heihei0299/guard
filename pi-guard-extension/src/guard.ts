@@ -6,7 +6,6 @@
  * The new Plan Mode state machine and orchestration live in `./plan-mode.ts`.
  */
 
-import { createPlanModeState } from "./plan-mode.ts";
 import type { PlanModeState } from "./state.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -41,7 +40,7 @@ export interface GuardMachine {
  * Use `createPlanModeState()` from `./plan-mode.ts` for new code.
  */
 export function createStateMachine(_options?: GuardMachineOptions & { config?: import("./config.ts").GuardConfig }): GuardMachine {
-  const planState: PlanModeState = createPlanModeState();
+  const planState: PlanModeState = { enabled: false, awaitingAction: false };
   let ruleEngineActive = false;
 
   return {

@@ -221,7 +221,7 @@ export type PlanModeQuestionDetails = {
  * Run the full question flow, mapping interruptions to cancelled results.
  *
  * Checks the lifecycle after asking so a changed session or disabled
- * Plan mode is reported distinctly from a user dismissal.
+ * Guard mode is reported distinctly from a user dismissal.
  */
 export async function answerPlanModeQuestions(
   questions: PlanModeQuestion[],
@@ -237,21 +237,21 @@ export async function answerPlanModeQuestions(
     return planModeQuestionCancelled(
       questions,
       "cancelled",
-      "Plan-mode question cancelled because the session changed.",
+      "Guard-mode question cancelled because the session changed.",
     );
   }
   if (!lifecycle.isEnabled()) {
     return planModeQuestionCancelled(
       questions,
       "plan_mode_inactive",
-      "Plan-mode question cancelled because Plan mode is no longer active.",
+      "Guard-mode question cancelled because Guard mode is no longer active.",
     );
   }
   if (!answers) {
     return planModeQuestionCancelled(
       questions,
       "cancelled",
-      "User cancelled the Plan-mode question prompt.",
+      "User cancelled the Guard-mode question prompt.",
     );
   }
   return planModeQuestionAnswered(questions, answers);

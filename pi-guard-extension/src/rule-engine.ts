@@ -14,7 +14,7 @@ import { expandHomePath } from "./path-normalizer.ts";
 
 export type PermissionState = "allow" | "ask" | "deny";
 
-export type RuleOrigin = "global" | "project" | "agent" | "builtin" | "session";
+export type RuleOrigin = "global" | "project" | "agent" | "builtin" | "session" | "config";
 
 export interface Rule {
   surface: string;
