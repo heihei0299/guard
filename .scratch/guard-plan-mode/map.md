@@ -26,6 +26,7 @@
 
 - **Ticket 02 (core logic) resolved** — 工具策略分类 / bash 安全 / 路径白名单 / 状态管理已实现。Commit `73dbab6`。详见 `issues/02-core-logic.md`
 - **Ticket 03 (plan submission tools) resolved** — `plan_mode_question` / `plan_mode_complete` 工具 + 双语 system prompt 已实现；`buildPlanModePrompt` 迁至 `prompt.ts`；`prompt-injector` 已删除。Commit `aa710ec`。详见 `issues/03-plan-submission-tools.md`
+- **Ticket 04 (infrastructure) resolved** — 上下文过滤（message-transform.ts）、TUI 展示（presentation.ts）、`/guard` 参数补全（command.ts）、subagent 白名单（subagent-policy.ts）、实现菜单（active-implementation-menu.ts）已实现；`PLAN_IMPLEMENTATION_HANDOFF_PREFIX` 导出供 Ticket 05 复用；面向用户文本统一用 Guard Mode 措辞（非参考实现的 Plan mode）。详见 `issues/04-infrastructure.md`
 
 ## Not yet specified
 
