@@ -1,12 +1,13 @@
 {
   "name": "pi-guard-extension",
   "version": "0.1.0",
-  "description": "Pi extension that enforces 'no unauthorized actions after skill conversations' via a three-state guard",
+  "description": "Pi extension implementing Guard Mode (Plan Mode) — structured planning workflow with tool policies, path allowlisting, and bash safety",
   "type": "module",
   "keywords": [
     "pi-package",
     "pi-extension",
     "guard",
+    "plan-mode",
     "skill"
   ],
   "license": "MIT",
@@ -23,6 +24,9 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
+  },
+  "dependencies": {
+    "@narumitw/pi-tui-kit": "^0.40.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
