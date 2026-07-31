@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { initTheme } from "@earendil-works/pi-coding-agent";
 import {
   PLAN_MODE_MAX_CHARS,
   PLAN_MODE_COMPLETE_VERSION,
@@ -7,6 +8,7 @@ import {
   planFromCompletionDetails,
   planModeCompleted,
   planModeCompletionMarkdown,
+  renderPlanModeCompletion,
 } from "./completion-tool.ts";
 
 describe("normalizePlanModeCompletion", () => {
@@ -148,5 +150,36 @@ describe("planModeCompletionMarkdown", () => {
   it("returns empty string when nothing is available", () => {
     expect(planModeCompletionMarkdown({ content: [] })).toBe("");
     expect(planModeCompletionMarkdown({ content: [] as never[] })).toBe("");
+  });
+});
+
+function renderWithoutAnsi(result: Parameters<typeof renderPlanModeCompletion>[0]) {
+  const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+  return renderPlanModeCompletion(result)
+    .render(80)
+    .map((line) => line.replace(ansiPattern, ""))
+    .join("\n");
+}
+
+describe("renderPlanModeCompletion", () => {
+  it("renders the plan as Markdown without leaking raw syntax", () => {
+    initTheme("dark");
+    const rendered = renderWithoutAnsi(
+      planModeCompleted("# Title\n\n- item\n\n```ts\nconst x = 1;\n```"),
+    );
+
+    expect(rendered).toMatch(/Proposed Plan/);
+    expect(rendered).toMatch(/const x = 1;/);
+    expect(rendered).not.toMatch(/\*\*Proposed Plan\*\*/);
+    expect(rendered).not.toMatch(/# Title/);
+  });
+
+  it("falls back to details when content has no text blocks", () => {
+    initTheme("dark");
+    const result = planModeCompleted("# Fallback");
+    const rendered = renderWithoutAnsi({ content: [], details: result.details });
+
+    expect(rendered).toMatch(/Proposed Plan/);
+    expect(rendered).toMatch(/Fallback/);
   });
 });

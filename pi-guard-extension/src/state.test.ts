@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { restorePlanModeState, type PlanModeState } from "./state.ts";
+import { PLAN_MODE_MAX_CHARS } from "./completion-tool.ts";
 
 describe("PlanModeState", () => {
   it("has correct default shape", () => {
@@ -159,6 +160,193 @@ describe("restorePlanModeState", () => {
     ];
     const result = restorePlanModeState(entries, "guard_plan_mode_state");
     expect(result.enabled).toBe(true);
+    expect(result.activeImplementation).toBeUndefined();
+  });
+});
+
+describe("restorePlanModeState restoration gaps", () => {
+  const stateEntry = (data: Record<string, unknown>) => ({
+    type: "custom",
+    customType: "guard_plan_mode_state",
+    data,
+  });
+
+  it("restores selectedToolNames deduplicated when all entries are strings", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: false,
+          selectedToolNames: ["read", "bash", "read"],
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.selectedToolNames).toEqual(["read", "bash"]);
+  });
+
+  it("fails closed when selectedToolNames contains non-strings", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: false,
+          selectedToolNames: ["read", 42],
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.selectedToolNames).toBeUndefined();
+  });
+
+  it("restores the applied and previous thinking levels while enabled", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: false,
+          previousThinkingLevel: "low",
+          appliedThinkingLevel: "medium",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.previousThinkingLevel).toBe("low");
+    expect(result.appliedThinkingLevel).toBe("medium");
+  });
+
+  it("restores a manual thinking level while enabled", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: false,
+          manualThinkingLevel: "high",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.manualThinkingLevel).toBe("high");
+  });
+
+  it("drops thinking levels but keeps tool selections while disabled", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: false,
+          awaitingAction: false,
+          previousThinkingLevel: "low",
+          appliedThinkingLevel: "medium",
+          manualThinkingLevel: "high",
+          selectedToolNames: ["read"],
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.previousThinkingLevel).toBeUndefined();
+    expect(result.appliedThinkingLevel).toBeUndefined();
+    expect(result.manualThinkingLevel).toBeUndefined();
+    expect(result.selectedToolNames).toEqual(["read"]);
+  });
+
+  it("drops invalid or inherit thinking levels", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: false,
+          previousThinkingLevel: "inherit",
+          appliedThinkingLevel: "extreme",
+          manualThinkingLevel: 5,
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.previousThinkingLevel).toBeUndefined();
+    expect(result.appliedThinkingLevel).toBeUndefined();
+    expect(result.manualThinkingLevel).toBeUndefined();
+  });
+
+  it("trims a persisted plan on restore", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: true,
+          latestPlan: "  # Plan  ",
+          latestPlanSource: "plan_mode_complete",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.latestPlan).toBe("# Plan");
+  });
+
+  it("fails closed on an oversized persisted plan", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: true,
+          latestPlan: "x".repeat(PLAN_MODE_MAX_CHARS + 1),
+          latestPlanSource: "plan_mode_complete",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.latestPlan).toBeUndefined();
+    expect(result.latestPlanSource).toBeUndefined();
+    expect(result.awaitingAction).toBe(false);
+  });
+
+  it("fails closed on a whitespace-only persisted plan", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: true,
+          latestPlan: " \n ",
+          latestPlanSource: "plan_mode_complete",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.latestPlan).toBeUndefined();
+    expect(result.awaitingAction).toBe(false);
+  });
+
+  it("keeps a plan at exactly the maximum size", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: true,
+          awaitingAction: true,
+          latestPlan: "x".repeat(PLAN_MODE_MAX_CHARS),
+          latestPlanSource: "plan_mode_complete",
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
+    expect(result.latestPlan).toHaveLength(PLAN_MODE_MAX_CHARS);
+    expect(result.awaitingAction).toBe(true);
+  });
+
+  it("fails closed on an oversized active implementation plan", () => {
+    const result = restorePlanModeState(
+      [
+        stateEntry({
+          enabled: false,
+          awaitingAction: false,
+          activeImplementation: {
+            id: "impl-1",
+            plan: "x".repeat(PLAN_MODE_MAX_CHARS + 1),
+            source: "plan_mode_complete",
+            startedAt: 5000,
+          },
+        }),
+      ],
+      "guard_plan_mode_state",
+    );
     expect(result.activeImplementation).toBeUndefined();
   });
 });

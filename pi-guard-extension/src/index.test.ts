@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createGuard } from "./index.ts";
 import { createMockPi, createMockContext, builtinTool, extensionTool } from "./test-support.ts";
+import type { PlanModeSettingsLoadResult } from "./settings.ts";
 type MockToolWithExecute = {
   execute: (...args: unknown[]) => Promise<unknown>;
 };
@@ -742,5 +743,352 @@ describe("thinking level", () => {
 
     await mock.events.get("session_shutdown")?.[0]?.({}, context.ctx);
     expect(mock.thinkingLevel).toBe("low");
+  });
+});
+
+describe("thinking level session restore", () => {
+  it("resets a previously loaded fixed thinking level when settings go missing", async () => {
+    let settings: PlanModeSettingsLoadResult = {
+      kind: "loaded",
+      settings: { thinkingLevel: "medium" },
+    };
+    const mock = createMockPi({ activeTools: ["read"], thinkingLevel: "low" });
+    createGuard({ readSettings: async () => settings })(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    expect(mock.thinkingLevel).toBe("medium");
+    await mock.commands.get("guard")?.handler("exit", context.ctx);
+    expect(mock.thinkingLevel).toBe("low");
+
+    settings = { kind: "missing" };
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    expect(mock.thinkingLevel).toBe("low");
+  });
+
+  it("does not restore a stale applied thinking level when settings inherit", async () => {
+    const mock = createMockPi({ activeTools: ["read"], thinkingLevel: "medium" });
+    createGuard({
+      readSettings: async () => ({ kind: "loaded", settings: { thinkingLevel: "inherit" } }),
+    })(mock.pi);
+    const inheritedState = {
+      type: "custom",
+      customType: "guard_plan_mode_state",
+      data: {
+        enabled: true,
+        awaitingAction: false,
+        previousThinkingLevel: "low",
+        appliedThinkingLevel: "medium",
+      },
+    };
+    const context = createMockContext({
+      hasUI: false,
+      sessionManager: {
+        getBranch: () => [inheritedState],
+        getEntries: () => [inheritedState],
+      },
+    });
+
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("exit", context.ctx);
+
+    expect(mock.thinkingLevel).toBe("medium");
+  });
+
+  it("reapplies the configured thinking level on resume and restores it on exit", async () => {
+    const mock = createMockPi({ activeTools: ["read"], thinkingLevel: "low" });
+    createGuard({
+      readSettings: async () => ({ kind: "loaded", settings: { thinkingLevel: "medium" } }),
+    })(mock.pi);
+    const resumedState = {
+      type: "custom",
+      customType: "guard_plan_mode_state",
+      data: {
+        enabled: true,
+        awaitingAction: false,
+        previousThinkingLevel: "low",
+        appliedThinkingLevel: "medium",
+      },
+    };
+    const context = createMockContext({
+      hasUI: false,
+      sessionManager: {
+        getBranch: () => [resumedState],
+        getEntries: () => [resumedState],
+      },
+    });
+
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    expect(mock.thinkingLevel).toBe("medium");
+
+    await mock.commands.get("guard")?.handler("exit", context.ctx);
+    expect(mock.thinkingLevel).toBe("low");
+  });
+
+  it("keeps a manual thinking change across shutdown and resume", async () => {
+    const mock = createMockPi({ activeTools: ["read"], thinkingLevel: "low" });
+    createGuard({
+      readSettings: async () => ({ kind: "loaded", settings: { thinkingLevel: "medium" } }),
+    })(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.events.get("session_start")?.[0]?.({}, context.ctx);
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    expect(mock.thinkingLevel).toBe("medium");
+
+    mock.rawPi.setThinkingLevel("high");
+    await mock.events.get("thinking_level_select")?.[0]?.(
+      { level: "high", previousLevel: "medium" },
+      context.ctx,
+    );
+    await mock.events.get("session_shutdown")?.[0]?.({}, context.ctx);
+    expect(mock.thinkingLevel).toBe("high");
+
+    const persisted = mock.entries.at(-1)?.data as { manualThinkingLevel?: string };
+    expect(persisted.manualThinkingLevel).toBe("high");
+    const resumedState = {
+      type: "custom",
+      customType: "guard_plan_mode_state",
+      data: { ...persisted, enabled: true },
+    };
+    const resumedContext = createMockContext({
+      hasUI: false,
+      sessionManager: {
+        getBranch: () => [resumedState],
+        getEntries: () => [resumedState],
+      },
+    });
+    await mock.events.get("session_start")?.[0]?.({}, resumedContext.ctx);
+    expect(mock.thinkingLevel).toBe("high");
+
+    await mock.commands.get("guard")?.handler("exit", resumedContext.ctx);
+    expect(mock.thinkingLevel).toBe("high");
+  });
+});
+
+describe("delivery failures", () => {
+  it("keeps a completed plan ready when show delivery fails", async () => {
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Still ready" }, undefined, undefined, context.ctx);
+    mock.rawPi.sendMessage = () => {
+      throw new Error("display unavailable");
+    };
+
+    await expect(mock.commands.get("guard")?.handler("show", context.ctx)).resolves.toBeUndefined();
+    expect(context.statuses.get("plan-mode")).toBe("plan ready");
+    expect(context.notifications.at(-1)?.message ?? "").toMatch(/display unavailable/);
+  });
+
+  it("finalize rejects while Guard mode is inactive", async () => {
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: true });
+
+    await mock.commands.get("guard")?.handler("finalize", context.ctx);
+    expect(mock.sentUserMessages.length).toBe(0);
+    expect(context.notifications.at(-1)?.message ?? "").toMatch(/not active/i);
+  });
+
+  it("finalize delivers idle-safely while active", async () => {
+    let idle = true;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: true, isIdle: () => idle });
+
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await mock.commands.get("guard")?.handler("finalize", context.ctx);
+    expect(mock.sentUserMessages.at(-1)?.text ?? "").toMatch(/plan_mode_complete/);
+    expect(mock.sentUserMessages.at(-1)?.options).toBeUndefined();
+
+    idle = false;
+    await mock.commands.get("guard")?.handler("finalize", context.ctx);
+    expect(mock.sentUserMessages.at(-1)?.options).toEqual({ deliverAs: "followUp" });
+  });
+
+  it("keeps Guard mode active when finalize delivery fails", async () => {
+    const mock = createMockPi({ activeTools: ["read"] });
+    mock.rawPi.sendUserMessage = () => {
+      throw new Error("Extension context is no longer active");
+    };
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+
+    await expect(mock.commands.get("guard")?.handler("finalize", context.ctx)).resolves.toBeUndefined();
+    expect(context.statuses.get("plan-mode")).toBe("plan active");
+    expect(context.notifications.at(-1)?.message ?? "").toMatch(/no longer active/);
+  });
+
+  it("rolls back a newly entered Guard mode when the inline prompt delivery fails", async () => {
+    const mock = createMockPi({ activeTools: ["read", "bash"] });
+    mock.rawPi.sendUserMessage = () => {
+      throw new Error("Extension context is no longer active");
+    };
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+
+    await expect(mock.commands.get("guard")?.handler("design it", context.ctx)).resolves.toBeUndefined();
+
+    expect(context.statuses.get("plan-mode")).toBeUndefined();
+    expect(mock.rawPi.getActiveTools()).toEqual(["read", "bash"]);
+    expect(context.notifications.at(-1)?.message ?? "").toMatch(/no longer active/);
+  });
+
+  it("restores the ready state when implement delivery fails", async () => {
+    const mock = createMockPi({ activeTools: ["read", "bash"] });
+    mock.rawPi.sendUserMessage = () => {
+      throw new Error("Extension context is no longer active");
+    };
+    createGuard()(mock.pi);
+    const context = createMockContext({ hasUI: false });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Ready again" }, undefined, undefined, context.ctx);
+
+    await expect(mock.commands.get("guard")?.handler("implement", context.ctx)).resolves.toBeUndefined();
+
+    expect(context.statuses.get("plan-mode")).toBe("plan ready");
+    expect(mock.rawPi.getActiveTools()).toEqual([
+      "bash",
+      "read",
+      "plan_mode_question",
+      "plan_mode_complete",
+    ]);
+    expect((mock.entries.at(-1)?.data as { latestPlan?: string }).latestPlan).toBe("# Ready again");
+  });
+});
+
+describe("ready presentation edge cases", () => {
+  it("waits for idle and pending-free state before presenting", async () => {
+    let idle = false;
+    let pending = false;
+    let selectCalls = 0;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      isIdle: () => idle,
+      hasPendingMessages: () => pending,
+      select: async () => {
+        selectCalls += 1;
+        return "Stay in Guard mode";
+      },
+    });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Wait for idle" }, undefined, undefined, context.ctx);
+
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    expect(selectCalls).toBe(0);
+
+    idle = true;
+    pending = true;
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    expect(selectCalls).toBe(0);
+
+    pending = false;
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    expect(selectCalls).toBe(1);
+    expect(context.statuses.get("plan-mode")).toBe("plan ready");
+  });
+
+  it("presents duplicate and replacement completions only once each", async () => {
+    let selectCalls = 0;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      select: async () => {
+        selectCalls += 1;
+        return "Stay in Guard mode";
+      },
+    });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    const tool = completionTool(mock);
+
+    await tool?.execute("complete", { plan: "# First" }, undefined, undefined, context.ctx);
+    await tool?.execute("complete", { plan: "# First" }, undefined, undefined, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    expect(selectCalls).toBe(1);
+
+    await tool?.execute("complete", { plan: "# Second" }, undefined, undefined, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    expect(selectCalls).toBe(2);
+    expect(context.statuses.get("plan-mode")).toBe("plan ready");
+  });
+
+  it("ignores a stale ready presentation intent without losing the ready state", async () => {
+    let selectCalls = 0;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      select: async () => {
+        selectCalls += 1;
+        return "Stay in Guard mode";
+      },
+    });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Superseded" }, undefined, undefined, context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Current" }, undefined, undefined, context.ctx);
+
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+
+    expect(selectCalls).toBe(1);
+    expect(context.statuses.get("plan-mode")).toBe("plan ready");
+    expect((mock.entries.at(-1)?.data as { latestPlan?: string }).latestPlan).toBe("# Current");
+  });
+
+  it("cancels a stale ready presentation when a newer turn starts", async () => {
+    let selectCalls = 0;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      select: async () => {
+        selectCalls += 1;
+        return "Stay in Guard mode";
+      },
+    });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    await completionTool(mock)?.execute("complete", { plan: "# Stale" }, undefined, undefined, context.ctx);
+
+    await mock.events.get("before_agent_start")?.[0]?.(
+      { systemPrompt: "base", prompt: "continue", systemPromptOptions: {} },
+      context.ctx,
+    );
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+
+    expect(selectCalls).toBe(0);
+    expect(context.statuses.get("plan-mode")).toBe("plan active");
+  });
+
+  it("presents repeated legacy agent_end plans once", async () => {
+    let selectCalls = 0;
+    const mock = createMockPi({ activeTools: ["read"] });
+    createGuard()(mock.pi);
+    const context = createMockContext({
+      hasUI: true,
+      select: async () => {
+        selectCalls += 1;
+        return "Stay in Guard mode";
+      },
+    });
+    await mock.commands.get("guard")?.handler("", context.ctx);
+    const legacy = {
+      messages: [{ role: "assistant", content: "<proposed_plan>\n# Legacy once\n</proposed_plan>" }],
+    };
+
+    await mock.events.get("agent_end")?.[0]?.(legacy, context.ctx);
+    await mock.events.get("agent_end")?.[0]?.(legacy, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+    await mock.events.get("agent_settled")?.[0]?.({}, context.ctx);
+
+    expect(selectCalls).toBe(1);
+    expect(mock.sentMessages.length).toBe(1);
+    expect(mock.sentMessages[0]?.message).toMatchObject({ customType: "proposed-plan" });
   });
 });

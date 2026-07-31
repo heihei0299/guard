@@ -431,6 +431,15 @@ export function driveCustomSelector(
 	return { renders, result: harness.result };
 }
 
+export function planModeStateEntry(data: Record<string, unknown>) {
+	return { type: "custom", customType: "guard_plan_mode_state", data };
+}
+
+export function settingsLoader(settings: Record<string, unknown>) {
+	return async () =>
+		({ kind: "loaded", settings: { thinkingLevel: "inherit", ...settings } }) as import("./settings.ts").PlanModeSettingsLoadResult;
+}
+
 export function builtinTool(name: string) {
 	return {
 		name,

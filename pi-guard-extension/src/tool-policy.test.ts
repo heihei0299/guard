@@ -244,6 +244,66 @@ describe("isSafeCommand", () => {
   it("blocks standalone & (non-&&)", () => {
     expect(isSafeCommand("cmd &")).toBe(false);
   });
+
+  it("allows git stash list", () => {
+    expect(isSafeCommand("git stash list")).toBe(true);
+  });
+
+  it("blocks git stash push", () => {
+    expect(isSafeCommand("git stash push -m wip")).toBe(false);
+  });
+
+  it("blocks git grep", () => {
+    expect(isSafeCommand("git grep TODO")).toBe(false);
+  });
+
+  it("blocks git remote", () => {
+    expect(isSafeCommand("git remote -v")).toBe(false);
+  });
+
+  it("allows gh issue view", () => {
+    expect(isSafeCommand("gh issue view 42")).toBe(true);
+  });
+
+  it("allows gh issue list", () => {
+    expect(isSafeCommand("gh issue list --state open")).toBe(true);
+  });
+
+  it("allows gh search repos", () => {
+    expect(isSafeCommand("gh search repos guard")).toBe(true);
+  });
+
+  it("allows gh repo view", () => {
+    expect(isSafeCommand("gh repo view owner/name")).toBe(true);
+  });
+
+  it("allows gh auth status", () => {
+    expect(isSafeCommand("gh auth status")).toBe(true);
+  });
+
+  it("blocks gh pr merge", () => {
+    expect(isSafeCommand("gh pr merge 218")).toBe(false);
+  });
+
+  it("allows npx tsc bare", () => {
+    expect(isSafeCommand("npx tsc")).toBe(true);
+  });
+
+  it("allows npx tsc --pretty", () => {
+    expect(isSafeCommand("npx tsc --pretty false")).toBe(true);
+  });
+
+  it("allows npm run lint", () => {
+    expect(isSafeCommand("npm run lint")).toBe(true);
+  });
+
+  it("allows npm outdated", () => {
+    expect(isSafeCommand("npm outdated")).toBe(true);
+  });
+
+  it("allows npm audit", () => {
+    expect(isSafeCommand("npm audit --audit-level high")).toBe(true);
+  });
 });
 
 // ── isPathAllowed ─────────────────────────────────────────────────────────
@@ -315,3 +375,4 @@ describe("isPathAllowed", () => {
     expect(isPathAllowed("~/project/src/main.ts")).toBe(false);
   });
 });
+

@@ -39,3 +39,4 @@
 - `/guard-start` / `/guard:allow` 兼容别名
 - pi-permission-system 集成
 - **Ticket 05 (main entry) resolved** — 主入口接线完成：`createGuard()` 工厂 + `/guard` 命令 + `--guard` 标志 + 两个工具 + 全部事件钩子；接线位于 `src/plan-mode.ts`（index.ts 为薄转发器）；code review 修复 tool_call 路径白名单强制、非 TUI reject、thin-forwarder 硬违规。详见 `issues/05-main-entry.md`
+- **Ticket 06 (tests) resolved** — 测试套件补强至 391 个（20 文件）；修复状态恢复真实缺陷（`restorePlanModeState` 恢复 selectedToolNames/thinking/plan 归一化，`session_start` 重新应用 thinking level）；新增 default-tools/subagent-allowlist/safe-subcommands/active-implementation 集成测试文件。详见 `issues/06-tests.md`

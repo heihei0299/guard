@@ -257,6 +257,7 @@ export function createGuard(options: GuardExtensionOptions = {}) {
       }
       if (state.enabled) {
         activatePlanModeTools();
+        applyPlanThinkingLevel();
       } else {
         deactivatePlanModeQuestionTool();
       }

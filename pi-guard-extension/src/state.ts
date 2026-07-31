@@ -5,6 +5,13 @@
  * using pi's session entry persistence mechanism.
  */
 
+import { normalizePlanModeCompletion } from "./completion-tool.ts";
+import {
+  PLAN_MODE_THINKING_LEVELS,
+  type PlanModeFixedThinkingLevel,
+  type PlanModeThinkingLevel,
+} from "./settings.ts";
+
 export type PlanCompletionSource = "plan_mode_complete" | "legacy_proposed_plan";
 
 export interface ActiveImplementationPlan {
@@ -75,9 +82,11 @@ export function restorePlanModeState(
   const enabled = entry.data.enabled === true;
 
   // Only restore latestPlan/latestPlanSource when enabled
-  const latestPlan = enabled ? stringValue(entry.data.latestPlan) : undefined;
+  const latestPlan = enabled ? normalizePersistedPlan(entry.data.latestPlan) : undefined;
   const latestPlanSource: PlanCompletionSource | undefined =
-    enabled ? planCompletionSource(entry.data.latestPlanSource) : undefined;
+    enabled && latestPlan !== undefined
+      ? planCompletionSource(entry.data.latestPlanSource)
+      : undefined;
 
   // Only restore activeImplementation when NOT enabled
   const activeImplementation = enabled
@@ -90,6 +99,14 @@ export function restorePlanModeState(
     latestPlanSource,
     awaitingAction: enabled && latestPlan !== undefined,
     activeImplementation,
+    selectedToolNames: stringArray(entry.data.selectedToolNames),
+    previousThinkingLevel: enabled
+      ? fixedThinkingLevel(entry.data.previousThinkingLevel)
+      : undefined,
+    appliedThinkingLevel: enabled
+      ? fixedThinkingLevel(entry.data.appliedThinkingLevel)
+      : undefined,
+    manualThinkingLevel: enabled ? fixedThinkingLevel(entry.data.manualThinkingLevel) : undefined,
   };
 }
 
@@ -102,9 +119,7 @@ function normalizeActiveImplementation(
     ? value.id
     : undefined;
   const source = planCompletionSource(value.source);
-  const plan = typeof value.plan === "string" && value.plan.trim().length > 0
-    ? value.plan.trim()
-    : undefined;
+  const normalized = normalizePlanModeCompletion({ plan: value.plan });
   const startedAt =
     typeof value.startedAt === "number" &&
     Number.isSafeInteger(value.startedAt) &&
@@ -112,8 +127,17 @@ function normalizeActiveImplementation(
       ? value.startedAt
       : undefined;
 
-  if (!id || !source || !plan || startedAt === undefined) return undefined;
-  return { id, plan, source, startedAt };
+  if (!id || !source || !normalized.ok || startedAt === undefined) return undefined;
+  return { id, plan: normalized.plan, source, startedAt };
+}
+
+/**
+ * Normalize a persisted plan with the same validation used by the
+ * completion tool: trim surrounding whitespace and enforce the size bound.
+ */
+function normalizePersistedPlan(value: unknown): string | undefined {
+  const normalized = normalizePlanModeCompletion({ plan: value });
+  return normalized.ok ? normalized.plan : undefined;
 }
 
 function planCompletionSource(value: unknown): PlanCompletionSource | undefined {
@@ -122,8 +146,18 @@ function planCompletionSource(value: unknown): PlanCompletionSource | undefined 
     : undefined;
 }
 
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+function fixedThinkingLevel(value: unknown): PlanModeFixedThinkingLevel | undefined {
+  return typeof value === "string" &&
+    value !== "inherit" &&
+    PLAN_MODE_THINKING_LEVELS.includes(value as PlanModeThinkingLevel)
+    ? (value as PlanModeFixedThinkingLevel)
+    : undefined;
+}
+
+function stringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item): item is string => typeof item === "string")
+    ? Array.from(new Set(value))
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
