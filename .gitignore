@@ -1,1 +1,6 @@
 node_modules/
+
+.codegraph/
+.reasonix/
+opencode.jsonc
+pi-extensions/
